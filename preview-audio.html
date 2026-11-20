@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>竖井 · 自适应空间音效试听台（M39）</title>
+<style>
+  :root { --bg:#14141d; --card:#22222f; --card2:#2b2b3d; --fg:#e8e8f2; --dim:#8a8aa3; --line:#3a3a52;
+          --hi:#e0553f; --ok:#5ad18a; --warn:#e0a34a; --blue:#4a7fd4; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:24px 26px 60px; font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+         background:var(--bg); color:var(--fg); }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .sub { color:var(--dim); font-size:13px; margin:0 0 18px; line-height:1.6; }
+  .sub b { color:var(--fg); }
+  .wrap { display:grid; grid-template-columns:minmax(360px,1fr) 340px; gap:20px; align-items:start; }
+  @media (max-width:860px) { .wrap { grid-template-columns:1fr; } }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .panel h2 { font-size:13px; margin:0 0 12px; letter-spacing:.06em; color:var(--dim); font-weight:600; }
+
+  /* ---- 舞台 ---- */
+  #stage { position:relative; width:100%; height:300px; border-radius:10px; cursor:crosshair;
+           background:
+             radial-gradient(circle at 50% 100%, rgba(74,127,212,.16), transparent 62%),
+             linear-gradient(180deg,#0f0f16 0%, #191926 55%, #232334 100%);
+           border:1px solid #33334a; overflow:hidden; touch-action:none; }
+  #stage .grid { position:absolute; inset:0;
+                 background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
+                                  linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+                 background-size:10% 10%; }
+  #listener { position:absolute; left:50%; bottom:12px; transform:translateX(-50%);
+              font-size:11px; color:var(--dim); text-align:center; line-height:1.3; }
+  #listener .dot { width:9px; height:9px; border-radius:50%; background:var(--blue);
+                   margin:0 auto 4px; box-shadow:0 0 14px var(--blue); }
+  #src { position:absolute; width:26px; height:26px; margin:-13px 0 0 -13px; border-radius:50%;
+         background:var(--hi); box-shadow:0 0 0 3px rgba(224,85,63,.22), 0 0 20px rgba(224,85,63,.6);
+         transition:transform .08s; }
+  #src:active { transform:scale(1.15); }
+  #ray { position:absolute; left:50%; bottom:22px; height:1px; transform-origin:0 50%;
+         background:linear-gradient(90deg, rgba(74,127,212,.5), rgba(224,85,63,.15)); pointer-events:none; }
+  .readout { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px;
+             font:12px ui-monospace,Consolas,monospace; }
+  .readout div { background:var(--card2); border-radius:8px; padding:8px 10px; }
+  .readout span { display:block; color:var(--dim); font-size:11px; margin-bottom:3px; }
+
+  /* ---- 通用控件 ---- */
+  .row { display:flex; flex-wrap:wrap; gap:8px; }
+  button.mat, button.act { padding:9px 11px; font-size:13px; border-radius:9px; cursor:pointer;
+      background:var(--card2); color:var(--fg); border:1px solid var(--line); text-align:left; transition:.12s; }
+  button.mat:hover, button.act:hover { background:#353550; border-color:#4c4c6e; }
+  button.mat:active, button.act:active { transform:translateY(1px); }
+  button.mat small { display:block; color:var(--dim); font-size:10px; font-family:ui-monospace,Consolas,monospace; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip { padding:6px 12px; border-radius:999px; font-size:12px; cursor:pointer;
+          border:1px solid var(--line); background:var(--card2); color:var(--dim); }
+  .chip.on { background:var(--hi); border-color:var(--hi); color:#fff; font-weight:600; }
+  label.sl { display:block; margin:14px 0 0; font-size:12px; color:var(--dim); }
+  label.sl b { color:var(--fg); float:right; font-family:ui-monospace,Consolas,monospace; }
+  input[type=range] { width:100%; margin-top:7px; accent-color:var(--hi); }
+  hr { border:0; border-top:1px solid var(--line); margin:16px 0; }
+
+  /* ---- 诊断 ---- */
+  #diag { font:12px/1.7 ui-monospace,Consolas,monospace; }
+  #diag .r { display:flex; justify-content:space-between; gap:10px; }
+  #diag .r span { color:var(--dim); }
+  .badge { display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600; }
+  .badge.spatial { background:rgba(90,209,138,.16); color:var(--ok); }
+  .badge.flat { background:rgba(224,163,74,.16); color:var(--warn); }
+  .bar { height:6px; border-radius:4px; background:#31314a; overflow:hidden; margin:6px 0 10px; }
+  .bar i { display:block; height:100%; width:0; background:linear-gradient(90deg,var(--blue),var(--hi)); transition:width .2s; }
+</style>
+</head>
+<body>
+  <h1>竖井 · 自适应空间音效试听台</h1>
+  <p class="sub">
+    拖动舞台上的<b>橙色声源</b>：横向 = 声像（pan），纵向 = 距离 + 高频滚降 + 遮挡。<br>
+    点击材质按钮在当前位置发声；切混响区、拉紧张度/深度，听的是<b>同一批音效在不同局势下的差别</b>。<br>
+    <span style="color:var(--warn)">首次点击页面才会解锁音频通道</span>（iOS / 微信内置浏览器要求真实触摸）。
+  </p>
+
+  <div class="wrap">
+    <!-- ================= 左：舞台 + 材质 ================= -->
+    <div>
+      <div class="panel">
+        <h2>空间舞台（2D → 声场）</h2>
+        <div id="stage"><div class="grid"></div><div id="ray"></div><div id="src"></div>
+          <div id="listener"><div class="dot"></div>听者<br>（屏幕下沿中央）</div>
+        </div>
+        <div class="readout">
+          <div><span>声像 pan</span><b id="o-x">0.00</b></div>
+          <div><span>距离 dist</span><b id="o-d">0.00</b></div>
+          <div><span>低通截止</span><b id="o-lp">20000 Hz</b></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:16px">
+        <h2>打击材质（9 种 · FMOD 事件路径）</h2>
+        <div class="row" id="mats"></div>
+      </div>
+    </div>
+
+    <!-- ================= 右：参数 + 诊断 ================= -->
+    <div>
+      <div class="panel">
+        <h2>混响区（1 次点击换场）</h2>
+        <div class="chips" id="zones"></div>
+        <label class="sl">竖井深度 D<b id="o-depth">1</b>
+          <input id="depth" type="range" min="1" max="33" value="1">
+        </label>
+        <label class="sl">紧张度 tension<b id="o-tension">0.00</b>
+          <input id="tension" type="range" min="0" max="1" step="0.01" value="0">
+        </label>
+        <hr>
+        <h2>自适应节奏层（需正在放 BGM）</h2>
+        <div class="chips" id="tracks"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="act" id="bgm-stop">■ 停曲</button>
+        </div>
+        <hr>
+        <h2>Stinger（事件提示音）</h2>
+        <div class="chips" id="stingers"></div>
+      </div>
+
+      <div class="panel" style="margin-top:16px">
+        <h2>引擎诊断</h2>
+        <div id="diag"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 顺序即依赖：引擎层在前，内容层在后（与 index.html 一致） -->
+  <script src="js/ui/audio-mw.js"></script>
+  <script src="js/ui/audio.js"></script>
+  <script>
+  (function () {
+    var MATS = [
+      ['blunt', '钝击', '打击 · 铁拳'], ['hammer', '重锤', '震地锤 · 基岩锤'],
+      ['metal', '金属', '撬棍 · 火钳'], ['pick', '凿击', '碎石 · 井壁凿击'],
+      ['drill', '钻探', '凿岩机 · 终末钻探'], ['blast', '爆破', '炸药包 · 连锁爆破'],
+      ['blade', '刀刃', '解剖刀 · 手术刀'], ['flame', '火焰', '灼烧 · 焚身 · 天火'],
+      ['claw', '爪击', '撕咬 · 撕裂（敌人）'],
+    ];
+    var ZONES = [['shaft', '竖井 · 井筒'], ['room', '节点 · 小室'], ['open', '地表 · 旷野']];
+    var TRACKS = [['battle', '普通战 104'], ['boss', 'Boss 战 118'], ['map', '大地图 62']];
+    var STINGERS = [['encounter', '遇敌'], ['kill', '击杀'], ['lowhp', '濒死'], ['bossReveal', 'Boss 现身']];
+
+    var stage = document.getElementById('stage');
+    var srcDot = document.getElementById('src');
+    var ray = document.getElementById('ray');
+    var pos = { x: 0.55, dist: 0.12 };     // 与 Sfx.stagePos 的敌人默认位对齐
+
+    // ---- 舞台拖拽 ----
+    function place(px, py) {
+      var r = stage.getBoundingClientRect();
+      var nx = Math.min(Math.max((px - r.left) / r.width, 0), 1);
+      var ny = Math.min(Math.max((py - r.top) / r.height, 0), 1);
+      pos.x = nx * 2 - 1;                  // 0..1 → −1..+1（左负右正）
+      pos.dist = ny;                       // 上远下近
+      paint();
+      playLast();
+    }
+    function paint() {
+      var r = stage.getBoundingClientRect();
+      var px = (pos.x + 1) / 2 * r.width;
+      var py = pos.dist * r.height;
+      srcDot.style.left = px + 'px';
+      srcDot.style.top = py + 'px';
+      // 声源 → 听者（下沿中央）的连线，直观表达「距离」
+      var lx = r.width / 2, ly = r.height - 22;
+      var dx = lx - px, dy = ly - py;
+      ray.style.width = Math.sqrt(dx * dx + dy * dy) + 'px';
+      ray.style.transform = 'rotate(' + Math.atan2(dy, dx) + 'rad)';
+      document.getElementById('o-x').textContent = pos.x.toFixed(2);
+      document.getElementById('o-d').textContent = pos.dist.toFixed(2);
+      document.getElementById('o-lp').textContent =
+        Math.round(20000 * (1 - pos.dist * 0.65)) + ' Hz';
+    }
+    var dragging = false;
+    stage.addEventListener('pointerdown', function (e) { dragging = true; place(e.clientX, e.clientY); });
+    window.addEventListener('pointermove', function (e) { if (dragging) place(e.clientX, e.clientY); });
+    window.addEventListener('pointerup', function () { dragging = false; });
+    window.addEventListener('resize', paint);
+
+    // ---- 材质按钮 ----
+    var lastMat = 'blunt';
+    function playLast() { Sfx.play(lastMat, opt()); }
+    function opt() {
+      return {
+        x: pos.x, dist: pos.dist,
+        occl: pos.dist > 0.72 ? 0.4 : 0,   // 远离到一定程度就当被前排挡住
+        name: lastMat, prio: 2,
+      };
+    }
+    var matsBox = document.getElementById('mats');
+    MATS.forEach(function (m) {
+      var b = document.createElement('button');
+      b.className = 'mat';
+      b.innerHTML = m[1] + '<small>' + Sfx.eventPath(m[0]) + '</small>';
+      b.addEventListener('click', function () { lastMat = m[0]; playLast(); });
+      matsBox.appendChild(b);
+    });
+
+    // ---- 混响区 ----
+    var curZone = 'shaft';
+    var zoneBox = document.getElementById('zones');
+    ZONES.forEach(function (z) {
+      var c = document.createElement('span');
+      c.className = 'chip' + (z[0] === curZone ? ' on' : '');
+      c.textContent = z[1];
+      c.addEventListener('click', function () {
+        curZone = z[0];
+        Array.prototype.forEach.call(zoneBox.children, function (n) { n.classList.remove('on'); });
+        c.classList.add('on');
+        applyScene();
+        playLast();
+      });
+      zoneBox.appendChild(c);
+    });
+    function applyScene() {
+      TDAudio.setScene(curZone, { depth: +document.getElementById('depth').value });
+    }
+
+    // ---- 滑杆 ----
+    document.getElementById('depth').addEventListener('input', function (e) {
+      document.getElementById('o-depth').textContent = e.target.value;
+      TDAudio.setParam('depth', +e.target.value);
+    });
+    document.getElementById('tension').addEventListener('input', function (e) {
+      var v = +e.target.value;
+      document.getElementById('o-tension').textContent = v.toFixed(2);
+      TDAudio.setParam('tension', v);
+    });
+
+    // ---- BGM / 节奏层 ----
+    var trackBox = document.getElementById('tracks');
+    TRACKS.forEach(function (t) {
+      var c = document.createElement('span');
+      c.className = 'chip';
+      c.textContent = t[1];
+      c.addEventListener('click', function () {
+        Array.prototype.forEach.call(trackBox.children, function (n) { n.classList.remove('on'); });
+        c.classList.add('on');
+        Bgm.play(t[0], true);
+        TDAudio.setMuted(Bgm.isMuted());     // 与顶栏开关保持一致
+      });
+      trackBox.appendChild(c);
+    });
+    document.getElementById('bgm-stop').addEventListener('click', function () {
+      Bgm.stop();
+      Array.prototype.forEach.call(trackBox.children, function (n) { n.classList.remove('on'); });
+    });
+
+    // ---- Stinger ----
+    var stBox = document.getElementById('stingers');
+    STINGERS.forEach(function (s) {
+      var c = document.createElement('span');
+      c.className = 'chip';
+      c.textContent = s[1];
+      c.addEventListener('click', function () { Sfx.stinger(s[0]); });
+      stBox.appendChild(c);
+    });
+
+    // ---- 诊断轮询 ----
+    function pad(k, v) { return '<div class="r"><span>' + k + '</span><b>' + v + '</b></div>'; }
+    setInterval(function () {
+      var d = TDAudio.diag();
+      document.getElementById('diag').innerHTML =
+        '<div class="r"><span>通道</span><span class="badge ' + d.path + '">' + d.path + '</span></div>' +
+        pad('静音键会话', d.session) +
+        pad('判定依据', '<span style="font-size:10px">' + d.reason.slice(0, 18) + '…</span>') +
+        pad('性能档 / 上限', d.tier + ' · ' + d.maxVoices) +
+        pad('活跃声部', d.voices + ' / ' + d.maxVoices) +
+        pad('混响区', d.zoneLabel + ' ' + d.bandLabel) +
+        pad('wet', d.wet) +
+        pad('tension', d.tension.toFixed(2) + ' → ' + d.tensionTgt.toFixed(2)) +
+        '<div class="bar"><i style="width:' + Math.round(d.tension * 100) + '%"></i></div>' +
+        pad('音乐低通', d.musicCutoff ? d.musicCutoff + ' Hz' : '未接入') +
+        pad('音乐高频架', d.musicShelf ? d.musicShelf + ' dB' : '—') +
+        pad('节奏层', d.pulse ? ('on ' + d.pulseTrack) : 'off') +
+        pad('IR 缓存', d.irCached + ' 张') +
+        pad('AudioContext', d.ctxState);
+    }, 250);
+
+    applyScene();
+    paint();
+    window.__ready = true;
+  })();
+  </script>
+</body>
+</html>

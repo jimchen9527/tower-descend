@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>形象图鉴 v3 · 卡通全身立绘</title>
+<style>
+/* ============================================================
+   形象图鉴 v3 —— 全员卡通 2D 全身立绘总览
+   公式：高辨识主色打底 + 暗部气质配饰 + 平涂粗描边 + 全身像
+   我方朝右 / 敌人朝左，battle 预览用同一批素材
+   ============================================================ */
+:root {
+  --bg: #F1EFE8;
+  --panel: #FFFFFF;
+  --ink: #2C2C2A;
+  --hint: #888780;
+  --line: #D3D1C7;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  min-height: 100vh;
+  padding: 18px 20px 30px;
+}
+
+header { max-width: 1180px; margin: 0 auto 4px; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+header h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: .02em; }
+header .note { font-size: 12px; color: var(--hint); }
+
+h2.sec {
+  max-width: 1180px; margin: 22px auto 10px;
+  font-size: 13px; font-weight: 700; color: var(--hint);
+  letter-spacing: .12em;
+  border-bottom: 1px solid var(--line); padding-bottom: 6px;
+}
+h2.sec b { color: var(--ink); }
+
+.grid {
+  max-width: 1180px; margin: 0 auto;
+  display: grid; gap: 14px;
+}
+.grid.chars { grid-template-columns: repeat(3, 1fr); }
+.grid.foes { grid-template-columns: repeat(5, 1fr); }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--ac, var(--hint));
+  border-radius: 10px;
+  padding: 10px 10px 12px;
+  box-shadow: 0 2px 6px rgba(60,58,52,.10);
+  display: flex; flex-direction: column; align-items: center;
+  position: relative;
+}
+.card .stage {
+  width: 100%; height: 190px;
+  display: grid; place-items: center;
+  background: linear-gradient(180deg, #FBFAF6, #EFEDE3);
+  border-radius: 7px;
+}
+.card img {
+  max-height: 170px; max-width: 92%;
+  filter: drop-shadow(0 8px 6px rgba(50,48,42,.22));
+}
+.card.foe .stage { background: linear-gradient(180deg, #F7F5EE, #E9E6D9); }
+.card .nm { font-size: 13px; font-weight: 700; margin-top: 8px; }
+.card .tier {
+  position: absolute; top: 8px; right: 8px;
+  font-size: 10px; color: var(--hint);
+  background: rgba(241,239,232,.9);
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 1px 7px;
+}
+.card .ds { font-size: 11px; color: var(--hint); margin-top: 2px; text-align: center; line-height: 1.5; }
+
+.hint-bar { max-width: 1180px; margin: 20px auto 0; font-size: 12px; color: var(--hint); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>形象图鉴 v3 · 卡通全身立绘</h1>
+  <span class="note">公式：高辨识主色 + 气质配饰 ｜ 卡通 2D 平涂粗描边 ｜ 全身像 ｜ AI 生成 + 本地抠图（preview-assets-v3/）</span>
+</header>
+
+<h2 class="sec">我方角色 <b>（朝右 · 战斗舞台左侧）</b></h2>
+<div class="grid chars">
+  <div class="card" style="--ac:#E8B72C">
+    <div class="stage"><img src="preview-assets-v3/digger-cut.png" alt="掘者"></div>
+    <div class="nm">掘者</div>
+    <div class="ds">明黄雨衣式矿工服 · 防毒面具 · 凹陷头盔与镐<br>初始角色 · 无资源系统</div>
+  </div>
+  <div class="card" style="--ac:#1D9E75">
+    <div class="stage"><img src="preview-assets-v3/medic-cut.png" alt="拾荒医师"></div>
+    <div class="nm">拾荒医师</div>
+    <div class="ds">病绿手术袍 · 口罩护目镜 · 样本箱与手术刀<br>资源「样本」：研究所幸存者</div>
+  </div>
+  <div class="card" style="--ac:#D85A30">
+    <div class="stage"><img src="preview-assets-v3/keeper-cut.png" alt="引火者"></div>
+    <div class="nm">引火者</div>
+    <div class="ds">燃橙仪式袍 · 尖兜帽 · 余烬提灯<br>资源「余烬」：信奉火种的教徒</div>
+  </div>
+</div>
+
+<h2 class="sec">小怪 <b>（朝左 · 战斗舞台右侧）</b></h2>
+<div class="grid foes">
+  <div class="card foe" style="--ac:#7C8A4A">
+    <span class="tier">小怪</span>
+    <div class="stage"><img src="preview-assets-v3/rats-cut.png" alt="腐蚀鼠群"></div>
+    <div class="nm">腐蚀鼠群</div>
+  </div>
+  <div class="card foe" style="--ac:#8A6A4A">
+    <span class="tier">小怪</span>
+    <div class="stage"><img src="preview-assets-v3/sentinel-cut.png" alt="锈蚀哨兵"></div>
+    <div class="nm">锈蚀哨兵</div>
+  </div>
+  <div class="card foe" style="--ac:#9AA34A">
+    <span class="tier">小怪</span>
+    <div class="stage"><img src="preview-assets-v3/spore_walker-cut.png" alt="孢囊行者"></div>
+    <div class="nm">孢囊行者</div>
+  </div>
+  <div class="card foe" style="--ac:#5A6A7A">
+    <span class="tier">小怪</span>
+    <div class="stage"><img src="preview-assets-v3/crawler-cut.png" alt="井壁爬虫"></div>
+    <div class="nm">井壁爬虫</div>
+  </div>
+  <div class="card foe" style="--ac:#7A8A9A">
+    <span class="tier">小怪</span>
+    <div class="stage"><img src="preview-assets-v3/shade-cut.png" alt="拾荒者残影"></div>
+    <div class="nm">拾荒者残影</div>
+  </div>
+</div>
+
+<h2 class="sec">精英</h2>
+<div class="grid foes">
+  <div class="card foe" style="--ac:#A03430">
+    <span class="tier">精英</span>
+    <div class="stage"><img src="preview-assets-v3/warlord-cut.png" alt="铁颚督军"></div>
+    <div class="nm">铁颚督军</div>
+  </div>
+  <div class="card foe" style="--ac:#C4524C">
+    <span class="tier">精英</span>
+    <div class="stage"><img src="preview-assets-v3/hound-cut.png" alt="双头犬"></div>
+    <div class="nm">双头犬</div>
+  </div>
+  <div class="card foe" style="--ac:#B0A890">
+    <span class="tier">精英</span>
+    <div class="stage"><img src="preview-assets-v3/bonewright-cut.png" alt="蚀骨工匠"></div>
+    <div class="nm">蚀骨工匠</div>
+  </div>
+</div>
+
+<h2 class="sec">大 Boss <b>（三段关底，难度递增）</b></h2>
+<div class="grid foes">
+  <div class="card foe" style="--ac:#8A4A2A">
+    <span class="tier">Boss 1</span>
+    <div class="stage"><img src="preview-assets-v3/rust_crown-cut.png" alt="锈冠"></div>
+    <div class="nm">锈冠</div>
+  </div>
+  <div class="card foe" style="--ac:#6A8A3A">
+    <span class="tier">Boss 2</span>
+    <div class="stage"><img src="preview-assets-v3/mother-cut.png" alt="菌母"></div>
+    <div class="nm">菌母</div>
+  </div>
+  <div class="card foe" style="--ac:#4A4E55">
+    <span class="tier">Boss 3</span>
+    <div class="stage"><img src="preview-assets-v3/executor-cut.png" alt="无首执械者"></div>
+    <div class="nm">无首执械者</div>
+  </div>
+</div>
+
+<div class="hint-bar">素材：preview-assets-v3/*-cut.png（AI 生成 → 裁水印 → rembg 抠图 → 裁紧压宽）｜ 本页未动游戏本体任何代码</div>
+
+</body>
+</html>

@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>战斗预览 · 杀戮尖塔式版式</title>
+<style>
+/* ============================================================
+   战斗预览（独立页，不影响游戏本体）
+   版式：我方居左 · 敌方居右（杀戮尖塔式横排对峙）
+   基调：沿用游戏本体的浅色「档案纸」+ 角色主题色
+   ============================================================ */
+:root {
+  --bg: #F1EFE8;          /* 米白纸底 */
+  --panel: #FFFFFF;
+  --ink: #2C2C2A;
+  --hint: #888780;
+  --line: #D3D1C7;
+  --digger: #5F5E5A;
+  --elite: #7A5417;
+  --boss: #6E1A1A;
+  --foe: #8B2B2B;
+  --hp-enemy: #B33A3A;
+  --hp-player: #2E8B57;
+  --block: #5A7A99;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-x: hidden;
+}
+
+/* ---------- 图形库基础（与 css/art.css 同款约定） ---------- */
+.art { display: block; }
+.art-hole { fill: var(--panel, #fff); }
+.art-hole-line { stroke: var(--panel, #fff); }
+
+/* ---------- 顶栏 ---------- */
+header {
+  width: 100%;
+  max-width: 1180px;
+  padding: 14px 20px 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+header h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: .02em; }
+header .note { font-size: 12px; color: var(--hint); }
+.toolbar { margin-left: auto; display: flex; gap: 8px; }
+.toolbar button {
+  font: 12.5px/1 "Segoe UI", "Microsoft YaHei", sans-serif;
+  padding: 7px 13px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  cursor: pointer; transition: transform .1s, border-color .15s;
+}
+.toolbar button:hover { border-color: #A8A69C; transform: translateY(-1px); }
+.toolbar button:active { transform: translateY(0); }
+.toolbar button.primary { background: var(--digger); border-color: var(--digger); color: #fff; }
+
+/* ---------- 战斗舞台 ---------- */
+.stage {
+  position: relative;
+  width: min(1180px, 96vw);
+  height: 560px;
+  margin: 8px auto 0;
+  background: linear-gradient(180deg, #FBFAF6 0%, #F3F1E9 62%, #E9E6DB 100%);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  /* 岩壁侧纹 —— 极淡的两道竖向阴影给纵深 */
+  box-shadow: inset 60px 0 80px -60px rgba(95,94,90,.18),
+              inset -60px 0 80px -60px rgba(95,94,90,.18);
+}
+/* 地面：一条淡的地平线 + 站位落影带 */
+.stage::after {
+  content: '';
+  position: absolute; left: 0; right: 0; bottom: 34px; height: 1.5px;
+  background: linear-gradient(90deg, transparent, rgba(95,94,90,.30) 18%, rgba(95,94,90,.30) 82%, transparent);
+}
+.stage::before {
+  content: '';
+  position: absolute; left: 4%; right: 4%; bottom: 0; height: 90px;
+  background: linear-gradient(180deg, transparent, rgba(95,94,90,.10));
+  border-radius: 0 0 13px 13px;
+  pointer-events: none;
+}
+
+/* 单位通用：wrapper 承担突进/受击动画，figure 承担待机浮动，两者不冲突 */
+.unit { position: absolute; display: flex; flex-direction: column; align-items: center; }
+.figure { position: relative; z-index: 2; }
+.shadow {
+  position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%);
+  width: 62%; height: 16px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(60,58,52,.28), transparent);
+  z-index: 1;
+}
+
+/* ---------- 我方（左） ---------- */
+#u-player { left: 7%; bottom: 88px; }
+#u-player .figure { width: 200px; height: 200px; color: var(--digger); animation: bob 3.2s ease-in-out infinite; }
+
+/* ---------- 敌方（右） ---------- */
+#u-hound { right: 8%; bottom: 170px; }
+#u-hound .figure { width: 170px; height: 170px; color: var(--elite); animation: bob 2.7s ease-in-out .4s infinite; }
+#u-rats  { right: 20%; bottom: 56px; }
+#u-rats .figure { width: 122px; height: 122px; color: var(--foe); animation: bob 2.3s ease-in-out infinite; }
+
+@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+/* 突进（攻击方）与受击（目标）—— 加在 .unit 上 */
+.lunge-r { animation: lungeR .42s cubic-bezier(.3,.7,.4,1); }
+.lunge-l { animation: lungeL .42s cubic-bezier(.3,.7,.4,1); }
+@keyframes lungeR { 0%{transform:translateX(0)} 38%{transform:translateX(92px)} 100%{transform:translateX(0)} }
+@keyframes lungeL { 0%{transform:translateX(0)} 38%{transform:translateX(-92px)} 100%{transform:translateX(0)} }
+.is-hit { animation: shake .38s linear; }
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-11px); } 40% { transform: translateX(9px); }
+  60% { transform: translateX(-6px); }  80% { transform: translateX(4px); }
+}
+.is-hit .figure { filter: brightness(1.35) saturate(1.4); }
+
+/* 攻击时的红色闪光扫过（受击方） */
+.hit-flash {
+  position: absolute; inset: 0; border-radius: 50%; z-index: 3; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(179,58,58,.4), transparent 72%);
+  animation: flashFade .38s ease-out forwards;
+}
+@keyframes flashFade { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+
+/* 斩击特效：一道弧线划过目标 */
+.slash {
+  position: absolute; z-index: 4; pointer-events: none;
+  width: 120px; height: 120px; left: 50%; top: 40%;
+  transform: translate(-50%, -50%);
+  animation: slashFade .34s ease-out forwards;
+}
+@keyframes slashFade {
+  0% { opacity: 0; transform: translate(-72%,-50%) scale(.55) rotate(-14deg); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-30%,-50%) scale(1.2) rotate(8deg); }
+}
+
+/* ---------- 血条 / 格挡 / 名牌 ---------- */
+.plate {
+  position: relative; z-index: 5;
+  margin-top: 12px; min-width: 170px;
+  background: rgba(255,255,255,.94);
+  border: 1px solid var(--line); border-radius: 9px;
+  padding: 6px 10px 8px;
+  box-shadow: 0 2px 8px rgba(60,58,52,.10);
+}
+.plate .pname { font-size: 12px; font-weight: 600; color: var(--ink); display: flex; justify-content: space-between; align-items: baseline; }
+.plate .pname .nm { letter-spacing: .04em; }
+.plate .pname .tier { font-size: 10.5px; color: var(--hint); }
+.hpbar {
+  position: relative; height: 13px; margin-top: 5px;
+  background: #E4E1D6; border-radius: 7px; overflow: hidden;
+  border: 1px solid rgba(60,58,52,.14);
+}
+.hpbar .fill {
+  position: absolute; inset: 0 auto 0 0; width: 100%;
+  border-radius: 6px;
+  transition: width .45s cubic-bezier(.25,.8,.3,1);
+}
+.enemy .fill { background: linear-gradient(180deg, #C4524C, #A03430); }
+.player .fill { background: linear-gradient(180deg, #43976A, #2E7B50); }
+.hpbar .txt {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 10.5px; font-weight: 600; color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.35); letter-spacing: .03em;
+}
+/* 格挡徽章（挡在上时候弹出） */
+.block-badge {
+  position: absolute; top: -13px; left: -13px; z-index: 6;
+  display: none; align-items: center; gap: 3px;
+  background: var(--block); color: #fff;
+  font-size: 12px; font-weight: 700;
+  padding: 3px 8px; border-radius: 20px;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(60,58,52,.3);
+}
+.block-badge.show { display: flex; animation: blockPop .3s cubic-bezier(.2,1.4,.4,1); }
+@keyframes blockPop { 0% { transform: scale(.4); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+.block-badge svg { width: 13px; height: 13px; }
+
+/* ---------- 意图（敌人头顶） ---------- */
+.intent-pill {
+  position: absolute; top: -34px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 5px;
+  background: rgba(255,255,255,.95);
+  border: 1px solid var(--line); border-radius: 20px;
+  padding: 4px 11px; z-index: 6;
+  font-size: 13px; font-weight: 700;
+  box-shadow: 0 2px 6px rgba(60,58,52,.12);
+  animation: intentIn .4s ease-out;
+}
+@keyframes intentIn { 0% { opacity: 0; transform: translateX(-50%) translateY(6px); } 100% { opacity: 1; transform: translateX(-50%) translateY(0); } }
+.intent-pill svg { width: 15px; height: 15px; }
+.intent-pill.attack { color: #A32D2D; }
+.intent-pill.buff { color: #854F0B; }
+.intent-pill small { font-size: 10px; color: var(--hint); font-weight: 400; }
+
+/* 目标选中环 */
+.unit.enemy { cursor: pointer; }
+.target-ring {
+  position: absolute; left: 50%; top: 42%;
+  width: 88%; height: 74%;
+  transform: translate(-50%, -50%);
+  border: 2.5px dashed transparent; border-radius: 50%;
+  z-index: 0; transition: border-color .15s;
+  pointer-events: none;
+}
+.unit.enemy.targeted .target-ring { border-color: rgba(163,45,45,.75); animation: ringPulse 1.4s ease-in-out infinite; }
+@keyframes ringPulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+
+/* ---------- 能量球 ---------- */
+.energy {
+  position: absolute; left: calc(7% + 60px); bottom: 30px;
+  width: 56px; height: 56px; border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #E8574A, #B32E24 70%);
+  border: 3px solid #fff;
+  box-shadow: 0 3px 10px rgba(179,46,36,.4);
+  display: grid; place-items: center;
+  color: #fff; font-size: 17px; font-weight: 800;
+  z-index: 7;
+}
+.energy.bump { animation: energyBump .3s ease-out; }
+@keyframes energyBump { 0% { transform: scale(1); } 45% { transform: scale(1.25); } 100% { transform: scale(1); } }
+
+/* ---------- 飘字 ---------- */
+#fx { position: absolute; inset: 0; pointer-events: none; z-index: 20; }
+.dmg-float {
+  position: absolute;
+  font-size: 26px; font-weight: 800; color: #A32D2D;
+  text-shadow: 0 1px 0 #fff, 0 2px 6px rgba(0,0,0,.25);
+  transform: translate(-50%, 0);
+  animation: floatUp .95s ease-out forwards;
+  white-space: nowrap;
+}
+.dmg-float.block { color: var(--block); font-size: 20px; }
+.dmg-float.heal { color: #2E8B57; }
+.dmg-float.big { font-size: 34px; }
+@keyframes floatUp {
+  0% { opacity: 0; transform: translate(-50%, 10px) scale(.5); }
+  14% { opacity: 1; transform: translate(-50%, -4px) scale(1.18); }
+  100% { opacity: 0; transform: translate(-50%, -72px) scale(1); }
+}
+
+/* ---------- 手牌区 ---------- */
+.hand {
+  display: flex; gap: 12px; align-items: flex-end;
+  padding: 14px 0 20px;
+  min-height: 188px;
+}
+.card {
+  width: 122px; height: 164px;
+  background: var(--panel);
+  border: 1.5px solid var(--line);
+  border-top: 4px solid var(--ctype, var(--digger));
+  border-radius: 10px;
+  padding: 10px 10px 8px;
+  cursor: pointer;
+  position: relative;
+  transition: transform .16s ease, box-shadow .16s ease;
+  box-shadow: 0 2px 6px rgba(60,58,52,.12);
+  display: flex; flex-direction: column;
+  user-select: none;
+}
+.card:hover { transform: translateY(-16px) scale(1.05); box-shadow: 0 10px 20px rgba(60,58,52,.22); z-index: 2; }
+.card.played { animation: cardPlay .5s ease-in forwards; pointer-events: none; }
+@keyframes cardPlay {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  55% { transform: translateY(-90px) scale(1.12) rotate(4deg); opacity: 1; }
+  100% { transform: translateY(-130px) scale(.7); opacity: 0; }
+}
+.card.empty { visibility: hidden; }
+.card .cost {
+  position: absolute; top: -10px; left: -8px;
+  width: 27px; height: 27px; border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #E8574A, #B32E24 72%);
+  border: 2px solid #fff; color: #fff;
+  display: grid; place-items: center;
+  font-size: 14px; font-weight: 800;
+  box-shadow: 0 1px 4px rgba(0,0,0,.25);
+}
+.card .cname { font-size: 13px; font-weight: 700; margin-top: 4px; }
+.card .ckind { font-size: 10px; color: var(--ctype, var(--hint)); margin-top: 2px; font-weight: 600; letter-spacing: .05em; }
+.card .ctext { font-size: 11px; line-height: 1.55; color: #55534C; margin-top: 7px; }
+.card.atk { --ctype: #A32D2D; }
+.card.skl { --ctype: #185FA5; }
+.card.pwr { --ctype: #854F0B; }
+.card.spent { opacity: .35; pointer-events: none; filter: grayscale(.7); }
+
+/* 回合横幅 */
+#turn-banner {
+  position: absolute; left: 50%; top: 40%;
+  transform: translate(-50%, -50%) scale(.8);
+  font-size: 26px; font-weight: 800; letter-spacing: .35em;
+  color: var(--ink); opacity: 0; pointer-events: none; z-index: 30;
+  text-shadow: 0 1px 0 #fff;
+}
+#turn-banner.show { animation: bannerIn 1s ease forwards; }
+@keyframes bannerIn {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(.8); }
+  18% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%,-50%) scale(1.06); }
+}
+
+/* 提示 */
+.hint-bar {
+  font-size: 12px; color: var(--hint); padding-bottom: 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01s !important; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>战斗预览 · 杀戮尖塔式版式</h1>
+  <span class="note">我方居左 · 敌方居右 ｜ 点敌人选目标，点手牌出牌，或用右侧按钮演示</span>
+  <div class="toolbar">
+    <button class="primary" id="btn-demo">▶ 自动演示一场</button>
+    <button id="btn-enemy">敌方回合</button>
+    <button id="btn-reset">重置</button>
+  </div>
+</header>
+
+<div class="stage" id="stage">
+  <!-- 我方 -->
+  <div class="unit player" id="u-player">
+    <div class="figure" id="fig-player"><div class="shadow"></div></div>
+    <div class="plate">
+      <div class="block-badge" id="block-badge"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l6 2.4v5.2c0 3.9-3.4 6.8-6 7.8-2.6-1-6-3.9-6-7.8V3.4z"/></svg><b id="block-num">0</b></div>
+      <div class="pname"><span class="nm">掘者</span><span class="tier">我方</span></div>
+      <div class="hpbar"><div class="fill" id="hp-player"></div><div class="txt" id="hpt-player">72 / 80</div></div>
+    </div>
+  </div>
+  <div class="energy" id="energy">3</div>
+
+  <!-- 敌方 -->
+  <div class="unit enemy elite targeted" id="u-hound" data-name="双头犬">
+    <div class="target-ring"></div>
+    <div class="figure" id="fig-hound"><div class="shadow"></div></div>
+    <div class="plate">
+      <div class="block-badge"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l6 2.4v5.2c0 3.9-3.4 6.8-6 7.8-2.6-1-6-3.9-6-7.8V3.4z"/></svg><b>0</b></div>
+      <div class="pname"><span class="nm">双头犬</span><span class="tier">精英</span></div>
+      <div class="hpbar"><div class="fill" id="hp-hound"></div><div class="txt" id="hpt-hound">82 / 82</div></div>
+    </div>
+  </div>
+
+  <div class="unit enemy" id="u-rats" data-name="腐蚀鼠群">
+    <div class="target-ring"></div>
+    <div class="figure" id="fig-rats"><div class="shadow"></div></div>
+    <div class="plate">
+      <div class="block-badge"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l6 2.4v5.2c0 3.9-3.4 6.8-6 7.8-2.6-1-6-3.9-6-7.8V3.4z"/></svg><b>0</b></div>
+      <div class="pname"><span class="nm">腐蚀鼠群</span><span class="tier">小怪</span></div>
+      <div class="hpbar"><div class="fill" id="hp-rats"></div><div class="txt" id="hpt-rats">34 / 40</div></div>
+    </div>
+  </div>
+
+  <div id="turn-banner"></div>
+  <div id="fx"></div>
+</div>
+
+<div class="hand" id="hand">
+  <div class="card empty"></div>
+  <div class="card atk" data-kind="strike">
+    <div class="cost">1</div><div class="cname">打击</div><div class="ckind">攻击</div>
+    <div class="ctext">造成 6 点伤害。</div>
+  </div>
+  <div class="card skl" data-kind="defend">
+    <div class="cost">1</div><div class="cname">防御</div><div class="ckind">技能</div>
+    <div class="ctext">获得 5 点格挡。</div>
+  </div>
+  <div class="card atk" data-kind="heavy">
+    <div class="cost">2</div><div class="cname">重锤</div><div class="ckind">攻击</div>
+    <div class="ctext">造成 14 点伤害。</div>
+  </div>
+  <div class="card pwr" data-kind="ritual">
+    <div class="cost">1</div><div class="cname">燃燔</div><div class="ckind">能力</div>
+    <div class="ctext">每回合开始时，力量 +1。</div>
+  </div>
+  <div class="card empty"></div>
+</div>
+<div class="hint-bar">预览版 —— 图形全部来自游戏本体 js/ui/art.js（SVG 剪影），动画为纯 CSS，未动任何游戏逻辑。</div>
+
+<script src="js/ui/art.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---------- 填充图形 ----------
+  function put(id, svg) { document.getElementById(id).innerHTML = svg + document.getElementById(id).innerHTML; }
+  put('fig-player', Art.char('digger'));
+  put('fig-hound', Art.enemy('hound'));
+  put('fig-rats', Art.enemy('rats'));
+
+  // ---------- 状态 ----------
+  const S = {
+    player: { hp: 72, max: 80, block: 0 },
+    hound:  { hp: 82, max: 82, block: 0 },
+    rats:   { hp: 34, max: 40, block: 0 },
+    energy: 3,
+    target: 'hound',
+  };
+
+  const $ = function (id) { return document.getElementById(id); };
+  const stage = $('stage');
+
+  function renderHp(who) {
+    const st = S[who];
+    const pct = Math.max(0, st.hp / st.max * 100);
+    $('hp-' + who).style.width = pct + '%';
+    $('hpt-' + who).textContent = Math.max(0, st.hp) + ' / ' + st.max;
+  }
+  function renderBlock() {
+    const b = $('block-badge');
+    $('block-num').textContent = S.player.block;
+    b.classList.toggle('show', S.player.block > 0);
+  }
+  function renderEnergy() {
+    $('energy').textContent = S.energy;
+    $('energy').classList.remove('bump');
+    void $('energy').offsetWidth;
+    $('energy').classList.add('bump');
+  }
+
+  // ---------- 特效 ----------
+  // 飘字：以目标单位的可视中心为锚点
+  function floatOver(el, text, cls) {
+    const sr = stage.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const span = document.createElement('span');
+    span.className = 'dmg-float' + (cls ? ' ' + cls : '');
+    span.textContent = text;
+    span.style.left = (r.left + r.width / 2 - sr.left + (Math.random() * 26 - 13)) + 'px';
+    span.style.top = (r.top + r.height * 0.22 - sr.top) + 'px';
+    $('fx').appendChild(span);
+    setTimeout(function () { span.remove(); }, 1000);
+  }
+
+  // 斩击弧线
+  function slashAt(el) {
+    const sr = stage.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const d = document.createElement('div');
+    d.className = 'slash';
+    d.style.left = (r.left + r.width / 2 - sr.left) + 'px';
+    d.style.top = (r.top + r.height * 0.4 - sr.top) + 'px';
+    d.innerHTML = '<svg viewBox="0 0 120 120" fill="none" stroke="#A32D2D" stroke-linecap="round">' +
+      '<path d="M18 96 Q60 40 104 20" stroke-width="7" opacity=".9"/>' +
+      '<path d="M30 104 Q66 56 108 34" stroke-width="3.5" opacity=".55"/></svg>';
+    $('fx').appendChild(d);
+    setTimeout(function () { d.remove(); }, 400);
+  }
+
+  function hitFlash(el) {
+    const f = document.createElement('div');
+    f.className = 'hit-flash';
+    el.querySelector('.figure').appendChild(f);
+    setTimeout(function () { f.remove(); }, 420);
+  }
+
+  function shake(el) {
+    el.classList.remove('is-hit');
+    void el.offsetWidth;
+    el.classList.add('is-hit');
+    hitFlash(el);
+  }
+
+  function lunge(el, dir) {
+    el.classList.remove('lunge-r', 'lunge-l');
+    void el.offsetWidth;
+    el.classList.add(dir === 'r' ? 'lunge-r' : 'lunge-l');
+  }
+
+  function banner(text) {
+    const b = $('turn-banner');
+    b.textContent = text;
+    b.classList.remove('show');
+    void b.offsetWidth;
+    b.classList.add('show');
+  }
+
+  // ---------- 伤害结算（演示用简化规则：格挡先行） ----------
+  function dealDamage(who, amount) {
+    const st = S[who];
+    let dmg = amount;
+    if (st.block > 0) {
+      const absorbed = Math.min(st.block, dmg);
+      st.block -= absorbed;
+      dmg -= absorbed;
+      floatOver($('u-' + who), '🛡 ' + absorbed, 'block');
+    }
+    if (dmg > 0) {
+      st.hp -= dmg;
+      floatOver($('u-' + who), '-' + dmg, amount >= 12 ? 'big' : '');
+      shake($('u-' + who));
+    }
+    renderHp(who);
+    renderBlock();
+    if (st.hp <= 0) {
+      const u = $('u-' + who);
+      u.style.transition = 'opacity .6s, transform .6s';
+      u.style.opacity = '0.18';
+      u.style.transform = 'translateY(14px) rotate(4deg)';
+      u.style.pointerEvents = 'none';
+    }
+  }
+
+  function aliveEnemies() {
+    return ['hound', 'rats'].filter(function (k) { return S[k].hp > 0; });
+  }
+
+  // ---------- 目标选择 ----------
+  document.querySelectorAll('.unit.enemy').forEach(function (u) {
+    u.addEventListener('click', function () {
+      document.querySelectorAll('.unit.enemy').forEach(function (x) { x.classList.remove('targeted'); });
+      u.classList.add('targeted');
+      S.target = u.id.slice(2);
+    });
+  });
+
+  // ---------- 出牌 ----------
+  const CARDS = {
+    strike: { cost: 1, run: function () { playerAttack(S.target, 6, false); } },
+    defend: { cost: 1, run: function () {
+      S.player.block += 5; renderBlock();
+      floatOver($('u-player'), '🛡 +5', 'block');
+    } },
+    heavy:  { cost: 2, run: function () { playerAttack(S.target, 14, true); } },
+    ritual: { cost: 1, run: function () {
+      floatOver($('u-player'), '力量 +1', 'heal');
+    } },
+  };
+  function playerAttack(targetKey, dmg, heavy) {
+    if (S[targetKey].hp <= 0) return;
+    const atk = $('u-player');
+    const tgt = $('u-' + targetKey);
+    lunge(atk, 'r');
+    setTimeout(function () {
+      slashAt(tgt);
+      dealDamage(targetKey, dmg);
+    }, 170);
+  }
+
+  document.querySelectorAll('.card[data-kind]').forEach(function (c) {
+    c.addEventListener('click', function () {
+      if (c.classList.contains('spent')) return;
+      const def = CARDS[c.dataset.kind];
+      if (S.energy < def.cost) { floatOver($('u-player'), '能量不足', 'block'); return; }
+      S.energy -= def.cost;
+      renderEnergy();
+      def.run();
+      c.classList.add('played');
+      setTimeout(function () { c.classList.add('spent'); c.classList.remove('played'); }, 520);
+    });
+  });
+
+  // ---------- 敌方回合 ----------
+  function enemyTurn() {
+    banner('敌方回合');
+    const acts = [];
+    if (S.hound.hp > 0) acts.push(['hound', 9]);
+    if (S.rats.hp > 0) acts.push(['rats', 4]);
+    acts.forEach(function (a, i) {
+      setTimeout(function () {
+        const atk = $('u-' + a[0]);
+        lunge(atk, 'l');
+        setTimeout(function () { dealDamage('player', a[1]); }, 170);
+      }, 500 + i * 620);
+    });
+    setTimeout(function () {
+      S.energy = 3;
+      renderEnergy();
+      banner('你的回合');
+      // 回到手牌
+      document.querySelectorAll('.card.spent').forEach(function (c) { c.classList.remove('spent'); });
+    }, 500 + acts.length * 620 + 500);
+  }
+
+  // 敌人意图（先展示在头顶，杀戮尖塔式）
+  function showIntents() {
+    function pill(hostId, kind, label) {
+      const host = $(hostId);
+      const old = host.querySelector('.intent-pill');
+      if (old) old.remove();
+      const p = document.createElement('div');
+      p.className = 'intent-pill ' + kind;
+      p.innerHTML = Art.intent(kind) + '<span>' + label + '</span>';
+      host.appendChild(p);
+    }
+    if (S.hound.hp > 0) pill('u-hound', 'attack', '9');
+    if (S.rats.hp > 0) pill('u-rats', 'attack', '4');
+  }
+  showIntents();
+
+  // ---------- 按钮 ----------
+  $('btn-enemy').addEventListener('click', enemyTurn);
+
+  $('btn-reset').addEventListener('click', function () {
+    S.player = { hp: 72, max: 80, block: 0 };
+    S.hound = { hp: 82, max: 82, block: 0 };
+    S.rats = { hp: 34, max: 40, block: 0 };
+    S.energy = 3;
+    ['player', 'hound', 'rats'].forEach(function (k) {
+      const u = $('u-' + k);
+      u.style.opacity = ''; u.style.transform = ''; u.style.pointerEvents = '';
+      renderHp(k);
+    });
+    renderBlock(); renderEnergy(); showIntents();
+    document.querySelectorAll('.card.spent').forEach(function (c) { c.classList.remove('spent'); });
+    document.querySelectorAll('.unit.enemy').forEach(function (x) { x.classList.remove('targeted'); });
+    $('u-hound').classList.add('targeted');
+    S.target = 'hound';
+  });
+
+  // 自动演示：打击 → 重锤 → 敌方回合 → 防御 → 打击 → 敌方回合
+  $('btn-demo').addEventListener('click', async function () {
+    const btn = this;
+    btn.disabled = true;
+    function play(kind) {
+      return new Promise(function (res) {
+        const c = document.querySelector('.card[data-kind="' + kind + '"]:not(.spent)');
+        if (c) c.click();
+        setTimeout(res, 900);
+      });
+    }
+    await play('strike');           // 打鼠群附近……实际打当前目标（双头犬）
+    await play('heavy');
+    await new Promise(function (r) { setTimeout(r, 400); });
+    enemyTurn();
+    await new Promise(function (r) { setTimeout(r, 2400); });
+    await play('defend');
+    await play('strike');
+    await new Promise(function (r) { setTimeout(r, 800); });
+    enemyTurn();
+    await new Promise(function (r) { setTimeout(r, 2400); });
+    btn.disabled = false;
+  });
+
+  // ---------- 初始渲染 ----------
+  ['player', 'hound', 'rats'].forEach(renderHp);
+  renderBlock();
+  renderEnergy();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover：让画面铺到刘海/圆角区，安全区由 CSS 的 env(safe-area-inset-*) 让位（M13） -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F1EFE8">
+<!-- iOS：加到主屏幕后全屏运行（不显示 Safari 地址栏），图标见 apple-touch-icon.png -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="竖井">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>竖井 · 下潜原型 M89</title>
+<link rel="stylesheet" href="css/style.css?v=M88">
+<!-- 图形层单独一个文件：摘掉这个 link，界面就退回纯布局态（M8） -->
+<link rel="stylesheet" href="css/art.css?v=M87">
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <div class="loc"><span id="act-name">—</span> · <span id="loc-depth">D1</span> · <span id="loc-type">入口</span></div>
+    <div class="turn" id="turn-box" hidden>第 <span id="turn-num">1</span> 回合</div>
+    <div class="runinfo">
+      <span class="rp rp-key">HP <b id="run-hp">75</b>/<b id="run-maxhp">75</b></span>
+      <span class="rp rp-key">金币 <b id="run-gold">99</b></span>
+      <!-- M87/V4：主干/走法/种子是开发参考信息，默认藏，?dev=1 才露（同 poolbar 口径） -->
+      <span class="rp rp-dev">主干 <b id="run-lanes">—</b> 条</span>
+      <span class="rp rp-dev">走法 <b id="run-paths">—</b></span>
+      <span class="rp rp-dev">种子 <b id="seed-val">—</b></span>
+      <span class="rp">刻痕 <b id="run-dl">DL1</b></span>
+      <!-- P0-3 遗物托盘：有遗物才显示，内容由 App.updateTopbar 渲染 -->
+      <span class="rp" id="relic-tray-box" hidden>遗物 <span id="relic-tray" class="relic-tray"></span></span>
+    </div>
+    <select id="char-select" class="char-select" title="切换角色（切过去会续上该角色自己的一局）"></select>
+    <button id="cloud-btn" class="btn btn-ghost btn-sm" title="登录后存档上云，换设备不丢进度">☁ 未同步</button>
+    <button id="bgm-toggle" class="btn btn-ghost btn-sm" title="战斗音乐：开/关">🔊</button>
+    <button id="new-run" class="btn btn-ghost btn-sm">新的一局</button>
+  </header>
+
+  <!-- 云存档面板（M52）：内容由 App.renderCloudUi 按登录状态动态渲染 -->
+  <div id="cloud-panel" class="cloud-panel" hidden>
+    <div id="cloud-panel-body"></div>
+  </div>
+
+  <main class="board">
+
+    <!-- ============ 主菜单视图（M55）============ -->
+    <section id="view-menu" class="view view-menu" hidden>
+      <div class="menu-box">
+        <div class="menu-title">竖井</div>
+        <div class="menu-sub">TOWER DESCEND · 下潜原型</div>
+
+        <!-- 主页：开始 / 继续 -->
+        <div id="menu-main" class="menu-page">
+          <button id="menu-start" class="btn btn-primary menu-btn">开始游戏</button>
+          <button id="menu-continue" class="btn btn-ghost menu-btn">继续游戏</button>
+          <button id="menu-daily" class="btn btn-ghost menu-btn">每日挑战</button>
+          <div id="menu-daily-desc" class="menu-hint"></div>
+          <button id="menu-codex-btn" class="btn btn-ghost menu-btn">图鉴 · 战绩</button>
+          <button id="menu-settings-btn" class="btn btn-ghost menu-btn">设置</button>
+          <div id="menu-continue-list" class="menu-continue-list"></div>
+        </div>
+
+        <!-- 选择页：三张角色卡 + 深度等级排 -->
+        <div id="menu-select" class="menu-page" hidden>
+          <div class="menu-page-title">选择下潜者</div>
+          <div id="menu-chars" class="menu-chars"></div>
+          <div class="menu-page-title">深度等级</div>
+          <div id="menu-dls" class="menu-dls"></div>
+          <div id="menu-dl-desc" class="menu-hint"></div>
+          <div class="menu-actions">
+            <button id="menu-back" class="btn btn-ghost">返回</button>
+            <button id="menu-go" class="btn btn-primary" disabled>开始下潜</button>
+          </div>
+        </div>
+
+        <!-- 设置页（M58 P1）：音乐 / 音效 / 动效分控 + 重置进度 -->
+        <div id="menu-settings" class="menu-page" hidden>
+          <div class="menu-page-title">设置</div>
+          <label class="set-row"><input type="checkbox" id="set-bgm"> 音乐</label>
+          <label class="set-row"><input type="checkbox" id="set-sfx"> 音效</label>
+          <label class="set-row"><input type="checkbox" id="set-fx"> 动效（呼吸 / 震屏 / 特效）</label>
+          <button id="set-reset" class="btn btn-ghost menu-btn set-danger">重置全部进度</button>
+          <button id="set-back" class="btn btn-ghost menu-btn">返回</button>
+        </div>
+
+        <!-- 图鉴·战绩·成就（M76 / R1）：三页签 Hub，内容由 App.renderCodex 渲染 -->
+        <div id="menu-codex" class="menu-page" hidden>
+          <div class="menu-page-title">图鉴 · 战绩</div>
+          <div id="codex-tabs" class="codex-tabs">
+            <button type="button" class="codex-tab is-on" data-ct="codex">图 鉴</button>
+            <button type="button" class="codex-tab" data-ct="stats">战 绩</button>
+            <button type="button" class="codex-tab" data-ct="ach">成 就</button>
+          </div>
+          <div id="codex-body" class="codex-body"></div>
+          <button id="menu-codex-back" class="btn btn-ghost menu-btn">返回</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============ 地图视图 ============ -->
+    <section id="view-map" class="view view-map">
+      <div id="placeholder" class="placeholder" hidden></div>
+      <div class="mapscroll">
+        <div class="mapwrap">
+          <svg id="map-svg" class="mapsvg"></svg>
+          <div id="map-nodes" class="mapnodes"></div>
+        </div>
+      </div>
+      <!-- 攀绳（M78 · §13）：每局有限次退回上一层，代价最大生命 −10。
+           两段确认（点一下进入待发，再点执行）防误触。 -->
+      <button id="rope-btn" class="btn btn-ghost rope-btn" hidden></button>
+    </section>
+
+    <!-- ============ 战斗视图 ============ -->
+    <section id="view-combat" class="view view-combat" hidden>
+      <div class="col-left">
+        <!-- 战斗舞台（M11b）：我方贴左、敌人集群贴右的开放场景。
+             两块面板只是逻辑容器（探针按 id 找里面的单位），版式全在 .battle-stage 上。 -->
+        <div class="battle-stage">
+          <!-- 地形背景层（M12）：render.draw() 按 depth 换 band 类，CSS 负责贴图 -->
+          <div id="battle-bg" class="battle-bg" hidden></div>
+          <!-- 舞台 HUD（M25）：能量条 + 地点标签 + 换目标提示，贴左上角。
+               必须是 .battle-stage 的直接子元素 —— 挂在 #enemy-panel 里时，
+               面板自带的 position: relative 会把它钉在「只占内容宽」的面板上，
+               HUD 就跟着漂到舞台中部去了。 -->
+          <div id="stage-hud" class="stage-hud"></div>
+          <section id="enemy-panel" class="panel enemy"></section>
+          <section id="player-panel" class="panel player"></section>
+          <!-- 药水腰带（M78 · §11）：3 槽，战斗中随时喝。贴舞台右下角 -->
+          <div id="potion-belt" class="potion-belt"></div>
+          <div id="result" class="result" hidden></div>
+        </div>
+        <div id="hand" class="hand"></div>
+        <div class="actions">
+          <button id="end-turn" class="btn btn-primary">结束回合</button>
+          <button id="restart" class="btn btn-ghost">重打本节点</button>
+        </div>
+        <div class="poolbar">
+          <span class="pool-label">卡池验证</span>
+          <select id="pool-select" class="pool-select"></select>
+          <button id="pool-add" class="btn btn-ghost btn-sm">加入手牌</button>
+          <button id="pool-energy" class="btn btn-ghost btn-sm">补满能量</button>
+          <label class="pool-depth">深度
+            <input id="depth-input" type="number" min="1" max="33" value="1">
+          </label>
+        </div>
+      </div>
+      <section class="panel logpanel">
+        <h2 class="panel-title">战斗记录</h2>
+        <div id="log" class="log"></div>
+      </section>
+    </section>
+
+  </main>
+
+  <!-- M77 新手引导：底部提示浮条（一次一条，队列播放）与术语释义浮层。
+       常驻 hidden，由 app.js 按需点亮；放在 main 外避免被视图切换连带隐藏。 -->
+  <div id="tipbar" hidden>
+    <span id="tipbar-text"></span>
+    <button id="tipbar-ok" class="btn btn-ghost">知道了</button>
+  </div>
+  <div id="term-pop" hidden></div>
+
+</div>
+
+<!-- 顺序即依赖：数据层先于 core，core 先于 ui（经典 script 标签，无模块系统） -->
+<!-- 云 SDK（M52）：IIFE 全局 WorkBuddyCloud，必须在 cloud.js 之前。
+     用 @dev 通道 —— latest 尚未维护。加载失败时 Cloud.available() 为 false，
+     云功能整块退场，游戏照常（本地存档不受影响）。 -->
+<script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js"></script>
+<script src="js/core/rng.js"></script>
+<script src="js/data/characters.js"></script>
+<script src="js/data/acts.js?v=M62b"></script>
+<script src="js/data/cards.js?v=M67"></script>
+<!-- 各角色的卡池必须在 cards.js 之后：它们把自己并进 CARDS，并检查 id 冲突 -->
+<script src="js/data/cards-medic.js?v=M82"></script>
+<script src="js/data/cards-keeper.js?v=M82"></script>
+<!-- 术语表（M77）：卡面文本 glossify 用，须在 render.js / app.js 之前 -->
+<script src="js/data/glossary.js?v=M77"></script>
+<!-- 药水（M78 · §11）：3 槽 / 商店与宝箱 / 战斗中随时喝 -->
+<script src="js/data/potions.js?v=M78"></script>
+<!-- 叙事（M79 / R4）：序幕 · 三角色结局 · 事件链 -->
+<script src="js/data/story.js?v=M79"></script>
+<script src="js/data/sfx-profile.js"></script>
+<script src="js/data/relics.js?v=M78"></script>
+<script src="js/data/events.js?v=M60"></script>
+<script src="js/data/enemies.js?v=M80"></script>
+<script src="js/core/combat.js?v=M89"></script>
+<script src="js/core/map.js"></script>
+<!-- progress.js 必须在 run.js 之前：Run 抽奖励卡时要按「角色 DL」过滤 -->
+<script src="js/core/progress.js?v=M85"></script>
+<script src="js/core/achievements.js?v=M85"></script>
+<!-- cloud.js 必须在 progress.js 之后、app.js 之前：app.js 的混合存储层要调它 -->
+<script src="js/core/cloud.js?v=M75"></script>
+<script src="js/core/run.js?v=M85"></script>
+<!-- art.js 必须最早：三个 render 文件都要调 Art.node / Art.enemy -->
+<script src="js/ui/art.js?v=M67"></script>
+<!-- audio-mw.js（M39 自适应空间音频中间件）必须在 audio.js 之前：
+     audio.js 是「内容层」（曲目表 / 打击材质 / 舞台映射），audio-mw.js 是「引擎层」
+     （总线 / 空间化 / 混响区 / 自适应参数 / 语音预算 / 双通道）。两者都不依赖渲染层，
+     但 app.js 的按钮绑定与场景切换要用它们，须在 app.js 之前。 -->
+<script src="js/ui/audio-mw.js?v=M59"></script>
+<!-- v=M41：M41 重做了打击音效配方（克制版：三段包络 + 峰值预算 + 总线软限幅）。
+     加查询串是为了绕过浏览器/CDN 对 audio.js 的缓存 —— 经典 script 标签默认会缓存，
+     不带版本号时线上可能仍在跑 M38 的旧配方（听感上就是「改了但没变」）。
+     audio.js 内部不依赖任何模块系统，查询串对它透明，可安全删除。 -->
+<script src="js/ui/audio.js?v=M59"></script>
+<script src="js/ui/render.js?v=M88"></script>
+<script src="js/ui/render-map.js?v=M87"></script>
+<script src="js/ui/render-node.js?v=M89"></script>
+<script src="js/ui/app.js?v=M89"></script>
+<script>App.boot({ menu: true });</script>
+</body>
+</html>

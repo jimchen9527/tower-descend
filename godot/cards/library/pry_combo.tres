@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://cards/card_data.gd" id="1_script"]
+[ext_resource type="Script" path="res://cards/effect_spec.gd" id="2_step"]
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step0"]
+script = ExtResource("2_step")
+kind = 0
+target = 0
+value = 7
+upgraded_value = 10
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step1"]
+script = ExtResource("2_step")
+kind = 5
+target = 2
+value = 2
+condition = 2
+
+[resource]
+script = ExtResource("1_script")
+id = "pry_combo"
+title = "撬棒连击"
+description = "造成 7 点伤害。若击杀，抽 2 张牌。"
+cost = 1
+card_type = 0
+rarity = 2
+discipline = 0
+unlock_depth = 6
+effects = Array[ExtResource("2_step")]([SubResource("Step0"), SubResource("Step1")])

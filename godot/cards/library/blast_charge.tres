@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://cards/card_data.gd" id="1_script"]
+[ext_resource type="Script" path="res://cards/effect_spec.gd" id="2_step"]
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step0"]
+script = ExtResource("2_step")
+kind = 0
+target = 0
+value = 22
+upgraded_value = 28
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step1"]
+script = ExtResource("2_step")
+kind = 4
+target = 2
+value = 4
+
+[resource]
+script = ExtResource("1_script")
+id = "blast_charge"
+title = "炸药包"
+description = "造成 22 点伤害，失去 4 点生命。"
+cost = 2
+card_type = 0
+rarity = 3
+discipline = 0
+unlock_depth = 7
+effects = Array[ExtResource("2_step")]([SubResource("Step0"), SubResource("Step1")])

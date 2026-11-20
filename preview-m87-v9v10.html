@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M87 样稿 · V9 手牌首屏 / V10 战斗区外框</title>
+<style>
+  :root {
+    --paper: #F2F0EA; --panel: #FFFFFF; --panel2: #FAFAF7;
+    --ink: #33312C; --muted: #43423E; --hint: #6B6A62;
+    --border: #D3D1C7; --bstrong: #B4B2A9; --gold: #8A6A1F;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 28px 20px 60px; line-height: 1.6;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+  h1 { font-size: 22px; letter-spacing: .12em; }
+  .sub { font-size: 12px; color: var(--hint); margin: 4px 0 26px; letter-spacing: .2em; }
+  h2 { font-size: 17px; margin: 34px 0 6px; }
+  .note { font-size: 12.5px; color: var(--muted); margin-bottom: 16px; max-width: 860px; }
+  .cols { display: flex; gap: 26px; flex-wrap: wrap; align-items: flex-start; }
+  .col { flex: 1 1 320px; max-width: 460px; }
+
+  /* 手机框 */
+  .phone {
+    width: 300px; height: 620px; border: 10px solid #2E2C28; border-radius: 30px;
+    background: var(--paper); overflow: hidden; position: relative; margin: 0 auto;
+    display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,.18);
+  }
+  .tag { text-align: center; font-weight: 700; font-size: 14px; margin: 0 0 10px; }
+  .tag small { display: block; font-weight: 400; font-size: 11.5px; color: var(--hint); }
+  .verdict { font-size: 12.5px; margin-top: 12px; padding: 9px 12px; border-radius: 9px; background: var(--panel2); border: 1px solid var(--border); }
+  .verdict b { color: var(--gold); }
+
+  /* 布局示意通用块 */
+  .topbar-sim {
+    flex: none; height: 34px; background: var(--panel); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 10px; color: var(--hint);
+  }
+  .chip { background: var(--panel2); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+  .stage {
+    position: relative; background:
+      linear-gradient(rgba(242,240,234,.18), rgba(242,240,234,.18)),
+      url('preview-assets-bg/battle-band1.jpg') center 30% / cover no-repeat;
+    display: flex; align-items: flex-end; justify-content: space-around;
+  }
+  .unit { width: 46%; text-align: center; }
+  .unit .art {
+    width: 74%; margin: 0 auto; border-radius: 10px;
+    background: linear-gradient(rgba(242,240,234,.15), rgba(242,240,234,.15)),
+      url('preview-assets-v3/keeper-idle.png') center top / contain no-repeat;
+    image-rendering: auto;
+  }
+  .unit.enemy .art { background-image: url('preview-assets-v3/rat-idle.png'); }
+  .hpbar { height: 10px; background: #C0392B; border-radius: 5px; margin: 4px 14px 8px; position: relative; }
+  .hpbar span { position: absolute; inset: 0; text-align: center; font-size: 8.5px; color: #fff; line-height: 10px; }
+  .hand {
+    flex: none; display: flex; gap: 6px; padding: 6px 10px;
+    background: var(--panel); border-top: 1px solid var(--border);
+  }
+  .card-sim {
+    flex: 1; background: var(--panel2); border: 1.5px solid var(--bstrong); border-radius: 8px;
+    font-size: 9px; color: var(--muted); position: relative; padding: 4px 5px 4px 6px;
+  }
+  .card-sim .cost {
+    position: absolute; top: -6px; left: -6px; width: 15px; height: 15px; border-radius: 50%;
+    background: var(--gold); color: #fff; font-size: 8.5px; text-align: center; line-height: 15px;
+  }
+  .card-sim b { display: block; font-size: 9.5px; color: var(--ink); }
+  .actions-sim { flex: none; display: flex; gap: 6px; padding: 6px 10px 10px; background: var(--panel); }
+  .btn-sim { flex: 1; text-align: center; font-size: 10px; padding: 7px 0; border-radius: 8px;
+    border: 1px solid var(--bstrong); color: var(--muted); background: var(--panel2); }
+  .btn-sim.pri { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .drawer {
+    flex: none; height: 30px; background: var(--ink); color: #F2F0EA;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 12px; font-size: 10.5px;
+  }
+  .drawer .backs { display: flex; }
+  .drawer .back { width: 16px; height: 22px; border-radius: 3px; background: var(--gold);
+    border: 1px solid #6d5416; margin-left: -6px; }
+  .drawer .back:first-child { margin-left: 0; }
+
+  /* V10 对比：舞台外框 */
+  .stageA, .stageB {
+    height: 240px; border-radius: 12px; position: relative; overflow: hidden;
+    background: linear-gradient(rgba(242,240,234,.14), rgba(242,240,234,.14)),
+      url('preview-assets-bg/battle-band2.jpg') center 35% / cover no-repeat;
+  }
+  .stageB::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    box-shadow: inset 0 0 0 2px rgba(51,49,44,.55), inset 0 0 46px rgba(38,34,28,.5);
+  }
+  .stageLabel {
+    position: absolute; left: 12px; top: 10px; font-size: 11px; color: #fff;
+    background: rgba(38,34,28,.62); border-radius: 6px; padding: 2px 9px; z-index: 2;
+  }
+  .mini-unit { position: absolute; bottom: 14px; width: 34%; text-align: center; }
+  .mini-unit.l { left: 8%; } .mini-unit.r { right: 8%; }
+  .mini-unit .art {
+    height: 120px; border-radius: 8px;
+    background: url('preview-assets-v3/keeper-idle.png') center top / contain no-repeat;
+  }
+  .mini-unit.r .art { background-image: url('preview-assets-v3/rat-idle.png'); }
+  .mini-unit .hpbar { margin: 4px 6px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>竖井 · M87 样稿圈阅</h1>
+  <div class="sub">V9 移动端手牌首屏 ｜ V10 战斗区外框 ｜ （V11 沿用 preview-menu-v3.html，不在此页）</div>
+
+  <h2>V9 · 手机端战斗首屏：手牌进首屏的两条路</h2>
+  <p class="note">现状：414×896 下舞台 + 手牌 + 操作区超一屏，手牌在折叠线以下，开局看不到自己的牌。两案都以「不改战斗逻辑、纯 CSS/少量 JS」为前提。</p>
+  <div class="cols">
+    <div class="col">
+      <div class="tag">A 压舞台 <small>舞台让高度，一切进首屏</small></div>
+      <div class="phone">
+        <div class="topbar-sim"><span class="chip">HP 75/75</span><span class="chip">金币 99</span><span style="margin-left:auto">废墟层 D2</span></div>
+        <div class="stage" style="flex: 0 0 300px;">
+          <div class="unit enemy"><div class="art" style="height:170px"></div><div class="hpbar"><span>76/76</span></div></div>
+          <div class="unit"><div class="art" style="height:170px"></div><div class="hpbar"><span>75/75</span></div></div>
+        </div>
+        <div class="hand">
+          <div class="card-sim"><span class="cost">1</span><b>打击</b>造成 6 点伤害</div>
+          <div class="card-sim"><span class="cost">1</span><b>打击</b>造成 6 点伤害</div>
+          <div class="card-sim"><span class="cost">1</span><b>防御</b>获得 5 点格挡</div>
+          <div class="card-sim"><span class="cost">2</span><b>凿击</b>造成 9 点伤害</div>
+        </div>
+        <div class="actions-sim"><div class="btn-sim">药水</div><div class="btn-sim">弃牌堆</div><div class="btn-sim pri">结束回合</div></div>
+      </div>
+      <div class="verdict">代价：立绘显示高度 −35%，对峙气势变弱；敌我单位要并排缩小。收益：一屏全信息，出牌零学习成本。<b>改动最小（纯 CSS）</b>。</div>
+    </div>
+    <div class="col">
+      <div class="tag">B 手牌抽屉 <small>舞台保持完整，手牌收成卡背条</small></div>
+      <div class="phone">
+        <div class="topbar-sim"><span class="chip">HP 75/75</span><span class="chip">金币 99</span><span style="margin-left:auto">废墟层 D2</span></div>
+        <div class="stage" style="flex: 1 1 auto;">
+          <div class="unit enemy"><div class="art" style="height:230px"></div><div class="hpbar"><span>76/76</span></div></div>
+          <div class="unit"><div class="art" style="height:230px"></div><div class="hpbar"><span>75/75</span></div></div>
+        </div>
+        <div class="drawer"><span>手牌 5 张 · 上滑展开</span><span class="backs"><i class="back"></i><i class="back"></i><i class="back"></i><i class="back"></i><i class="back"></i></span></div>
+        <div class="actions-sim"><div class="btn-sim">药水</div><div class="btn-sim">弃牌堆</div><div class="btn-sim pri">结束回合</div></div>
+      </div>
+      <div class="verdict">代价：出牌前多一步「展开」；回合流程多一次点击。收益：立绘完整、舞台气势保留。<b>改动中等（抽屉 + 展开浮层）</b>。</div>
+    </div>
+    <div class="col">
+      <div class="tag">C 折中：手牌半露（推荐）<small>卡牌上半截常驻，点按全展开</small></div>
+      <div class="phone">
+        <div class="topbar-sim"><span class="chip">HP 75/75</span><span class="chip">金币 99</span><span style="margin-left:auto">废墟层 D2</span></div>
+        <div class="stage" style="flex: 1 1 auto;">
+          <div class="unit enemy"><div class="art" style="height:200px"></div><div class="hpbar"><span>76/76</span></div></div>
+          <div class="unit"><div class="art" style="height:200px"></div><div class="hpbar"><span>75/75</span></div></div>
+        </div>
+        <div class="hand" style="height: 74px; overflow: hidden;">
+          <div class="card-sim"><span class="cost">1</span><b>打击</b>造成 6 点伤害</div>
+          <div class="card-sim"><span class="cost">1</span><b>打击</b>造成 6 点伤害</div>
+          <div class="card-sim"><span class="cost">1</span><b>防御</b>获得 5 点格挡</div>
+          <div class="card-sim"><span class="cost">2</span><b>凿击</b>造成 9 点伤害</div>
+        </div>
+        <div class="actions-sim" style="padding-top: 2px;"><div class="btn-sim">药水</div><div class="btn-sim pri">结束回合</div></div>
+      </div>
+      <div class="verdict">费用角标 + 牌名常驻可读（出什么牌大体可判），要看全文轻点上滑展开；立绘损失比 A 案小。<b>改动小（半露高度 + 点击展开）</b>。</div>
+    </div>
+  </div>
+
+  <h2>V10 · 战斗区外框：从「画中画」到「舞台」</h2>
+  <p class="note">现状：战斗场景与米白页面硬切，视觉焦点散。右案加 2px 深描边 + 内暗角（inset shadow，纯 CSS），舞台聚光感立刻出来，立绘与地面光影更聚焦。仅 art.css 数行，桌面/手机同生效。</p>
+  <div class="cols">
+    <div class="col">
+      <div class="tag">现状：无框</div>
+      <div class="stageA">
+        <span class="stageLabel">腐烂鼠群 · 意图 攻击 5</span>
+        <div class="mini-unit l"><div class="art"></div><div class="hpbar"><span>75/75</span></div></div>
+        <div class="mini-unit r"><div class="art"></div><div class="hpbar"><span>76/76</span></div></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="tag">提案：描边 + 暗角</div>
+      <div class="stageB">
+        <span class="stageLabel">腐烂鼠群 · 意图 攻击 5</span>
+        <div class="mini-unit l"><div class="art"></div><div class="hpbar"><span>75/75</span></div></div>
+        <div class="mini-unit r"><div class="art"></div><div class="hpbar"><span>76/76</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>V11 · 菜单封面（M74b 遗留）</h2>
+  <p class="note">草稿已在 <b>preview-menu-v3.html</b>（遗址背景 + 半身立绘 + 头像选择）。仍差两个决定：① 布局用 v3 还是再调；② 姿态路线 <b>A</b>（现立绘裁半身，零成本）还是 <b>B</b>（AI 生成攻击姿态稿，风格有出入风险）。回复「v3 + A」这样的格式即可落地。</p>
+</div>
+</body>
+</html>

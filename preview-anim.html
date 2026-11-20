@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>《竖井》M73 动作预览 · 玩家攻击 / 防御</title>
+<!-- 直接加载游戏真 CSS：预览里看到的就是战斗里的实现，零漂移 -->
+<link rel="stylesheet" href="css/art.css?v=M73">
+<style>
+  /* ---------- 页面骨架（仅布局，不碰动画） ---------- */
+  :root {
+    --bg: #171a20; --card: #21252d; --line: #333945;
+    --ink: #e8e4da; --muted: #9aa0ac; --gold: #e8b04a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.6 "Microsoft YaHei", system-ui, sans-serif;
+    padding: 28px 20px 60px;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  .sub b { color: var(--gold); font-weight: 600; }
+  .desc { color: var(--muted); font-size: 12.5px; margin: 14px 0 10px; }
+  .desc b { color: var(--gold); font-weight: 600; }
+
+  /* ---------- 舞台：#player-panel 承接游戏侧选择器，结构照抄 playerHtml ---------- */
+  .stage {
+    position: relative; height: 520px; border-radius: 10px; overflow: hidden;
+    background: url(preview-assets-bg/battle-band1.jpg) center bottom / cover no-repeat;
+    border: 1px solid var(--line);
+  }
+  .stage::after {
+    content: ""; position: absolute; inset: auto 0 0 0; height: 46px;
+    background: linear-gradient(transparent, rgba(20, 18, 14, .38));
+    pointer-events: none;
+  }
+  /* 游戏里玩家面板有布局样式；预览里只保留定位锚点（横向舞台居中） */
+  #player-panel { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); }
+  /* 放大预览：游戏桌面档立绘只有 111px，看不清动作细节 —— 这里放到 300px。
+     尺寸直接覆盖 .unit-bm 的高度（游戏规则是 calc(111px * --bm-scale * --crowd)），
+     加 .game-size 类退回游戏原尺寸做对照。 */
+  .stage #player-panel .unit-art-player .unit-bm {
+    height: 300px; max-width: 420px;
+  }
+  .stage #player-panel.game-size .unit-art-player .unit-bm {
+    height: 111px; max-width: 130px;
+  }
+  /* 淡入层：绝对定位叠在第一层上（不改 transform，免得和待机呼吸抢同一属性） */
+  .stage #player-panel .unit-art-player .pv-bm-b {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    opacity: 0;
+    transition: opacity .12s linear;
+    pointer-events: none;
+  }
+
+  /* ---------- 控制条 ---------- */
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 4px; align-items: center; }
+  .bar button {
+    background: var(--card); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 16px; font: inherit; cursor: pointer;
+    transition: border-color .12s, background .12s;
+  }
+  .bar button:hover { border-color: var(--gold); }
+  .bar button:active { transform: translateY(1px); }
+  .bar button.primary { background: #3d3423; border-color: #6b5a33; }
+  .bar .sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+  .bar .lbl { color: var(--muted); font-size: 12.5px; margin-right: 2px; }
+  .bar .char.on { border-color: var(--gold); background: #35301f; }
+  .log { color: var(--muted); font-size: 12px; min-height: 20px; }
+  .log b { color: var(--gold); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>M73 玩家动作预览 · 攻击 / 防御</h1>
+  <div class="sub">位图立绘<b>零改动</b>：攻击 = 突进（M24）+ 挥击叠加；防御 = 扎稳下压 + 盾光环。动作结束回到原形态。</div>
+
+  <div class="stage">
+    <div id="player-panel">
+      <div class="unit" id="pv-unit">
+        <div class="unit-art unit-art-player">
+          <img class="unit-bm" id="pv-bm" src="preview-assets-v3/digger-cut.png" alt="" draggable="false">
+          <!-- 第二层：分镜版换帧时做 0.12s 淡化，硬切换帧太跳 -->
+          <img class="unit-bm pv-bm-b" id="pv-bm2" src="preview-assets-v3/digger-cut.png" alt="" draggable="false">
+        </div>
+        <!-- 预览不摆血条：动作只发生在 .unit-art / .unit 层，缺血条不影响形态 -->
+      </div>
+    </div>
+  </div>
+
+  <div class="bar">
+    <span class="lbl">角色</span>
+    <button class="char on" data-char="digger">掘者</button>
+    <button class="char" data-char="medic">医师</button>
+    <button class="char" data-char="keeper">守火者</button>
+    <span class="sep"></span>
+    <button class="primary" id="btn-attack">攻击（游戏节奏 0.65s）</button>
+    <button class="primary" id="btn-story">分镜版（2.5s）</button>
+    <button class="primary" id="btn-defend">防御</button>
+    <button id="btn-combo">连段（攻→防）</button>
+    <button id="btn-auto">自动演示</button>
+    <span class="sep"></span>
+    <button id="btn-hands" class="on">手部帧动画：开</button>
+    <button id="btn-size" class="on">放大预览：开</button>
+  </div>
+  <div class="log" id="pv-log"></div>
+
+  <div class="desc">
+    <b>攻击</b>：三帧手部动作（蓄力 0-80ms → 过渡 80-170ms → 挥击 170-300ms → 回落）
+    叠在 .unit 层突进（atk-lunge-r，M24 敌我共用）+ 残影（M26）之上。
+    帧图按靴底基线与靴宽对齐，换帧不跳；敌人突进不变。
+  </div>
+  <div class="desc">
+    <b>防御</b>：格挡快照增量触发（render.js _lastBlk diff，与血量快照同一套机制）——
+    脚底为轴下压扎稳再回弹（defend-brace，脚部像素不动）+ 脚底淡蓝盾光环（.block-ring，620ms 自删）。
+  </div>
+  <div class="desc">
+    <b>分镜版（2.5s）</b>：站立 0-0.5s → 双手过顶后仰蓄力 0.5-1.2s → 前倾凿击 1.2-2.0s → 停顿收势 2.0-2.5s。
+    帧间 0.12s 淡化，避免硬切跳帧；武器始终在双手/单手之间连续，不脱手。
+  </div>
+  <div class="desc">
+    <b>攻击（游戏节奏 0.65s）= 游戏内行为（M73c 定稿，规格 0.6-0.8s）</b>：原地不位移、无残影、无挤压拉伸 ——
+    帧序 蓄力（atk2，0-150ms）→ 击出（atk3，150-520ms 含短停顿）→ 收势回站立；
+    躯干只做 3.5° 轻微前倾（atk-swing-p，0.6s），肩肘腕旋转由帧承担。
+  </div>
+  <div class="desc">
+    <b>回归保障</b>：动作全部 transform 合成，动画 100% 帧回到 scale(1,1) rotate(0)；
+    同帧既出手又挨打时 is-hit 赢（特异性 0,3,0 > :where 压低的 0,2,0，沿 M57「挨打优先」先例）；
+    fx 关（td-fx=0）时由 html.fx-off 总开关全停。
+  </div>
+</div>
+
+<script>
+(function () {
+  var unit = document.getElementById('pv-unit');
+  var bm = document.getElementById('pv-bm');
+  var bm2 = document.getElementById('pv-bm2');
+  var log = document.getElementById('pv-log');
+  var autoT = null;
+  var seqT = [];               // 分镜版定时器（重播前先清，免得多条时间轴叠加）
+  var handsOn = true;          // 手部帧动画开关（默认开：就是要看这个）
+  var bigOn = true;            // 放大预览（关 = 游戏桌面原尺寸 111px，做对照）
+  var curChar = 'digger';
+  var CHARS = { digger: '掘者', medic: '医师', keeper: '守火者' };
+  // 攻击帧（相对 base 立绘已对齐：同画布、同靴底基线）
+  var ATK = {
+    digger: [
+      'preview-assets-v3/digger-atk1.png',   // 蓄力：镐举过肩
+      'preview-assets-v3/digger-atk2.png',   // 过渡：镐举到头顶（新增中间帧）
+      'preview-assets-v3/digger-atk3.png',   // 挥击：镐抡到身前
+    ],
+    medic: [
+      null,
+      'preview-assets-v3/medic-atk2.png',    // 蓄力：刀举过肩
+      'preview-assets-v3/medic-atk3.png',    // 挥击：刀刺向前下
+    ],
+    keeper: [
+      null,
+      'preview-assets-v3/keeper-atk2.png',   // 蓄力：提灯后收
+      'preview-assets-v3/keeper-atk3.png',   // 挥击：灯向前挥、火焰前扑
+    ],
+  };
+  // 预加载：换帧不能等网络，否则第一下永远看不到蓄力帧
+  Object.keys(ATK).forEach(function (k) {
+    ATK[k].forEach(function (src) { if (src) { var i = new Image(); i.src = src; } });
+  });
+
+  function say(msg) { log.innerHTML = msg; }
+
+  // 挂类套路照抄 render.js：先摘 → 强制重排 → 再挂 → 到点自摘
+  function pulse(cls, ms) {
+    unit.classList.remove(cls);
+    void unit.offsetWidth;
+    unit.classList.add(cls);
+    setTimeout(function () { unit.classList.remove(cls); }, ms);
+  }
+  // 残影（M26 同款）：向后拖淡出，420ms 自删
+  function ghost() {
+    var g = document.createElement('img');
+    g.src = bm.src;
+    g.className = 'unit-bm ghost';
+    g.alt = '';
+    g.style.setProperty('--gx', '-14px');
+    bm.parentNode.appendChild(g);
+    setTimeout(function () { g.remove(); }, 420);
+  }
+  function attack() {
+    pulse('is-attack', 650);
+    var frames = handsOn && ATK[curChar];
+    if (!frames) {
+      // 无帧角色：保持 M24 老路径 —— 突进 + 残影
+      ghost();
+      say('攻击：突进 + 残影（M24 老路径，' + (curChar === 'digger' ? '帧动画已关' : CHARS[curChar] + '暂无手部帧') + '）');
+      return;
+    }
+    // M73c 游戏行为：原地不位移、无残影、无挤压；0.65s 节奏（规格 0.6-0.8s）
+    // M73c 游戏行为：原地不位移、无残影、无挤压；0.65s 节奏（规格 0.6-0.8s）
+    say('攻击：原地蓄力 → 击出 → 收势（150 / 520ms，共 0.65s）');
+    bm.src = frames[1];
+    setTimeout(function () { bm.src = frames[2]; }, 150);
+    setTimeout(function () {
+      bm.src = 'preview-assets-v3/' + curChar + '-cut.png';
+    }, 520);
+  }
+  function defend() {
+    pulse('is-defend', 620);
+    // 盾光环照抄 defendEffect（fx 闸门在预览里不拦 —— 就是要看它）
+    var art = unit.querySelector('.unit-art');
+    var ring = document.createElement('i');
+    ring.className = 'block-ring';
+    art.appendChild(ring);
+    setTimeout(function () { ring.remove(); }, 620);
+    say('防御：扎稳下压 + 盾光环（620ms）');
+  }
+
+  // 换帧：新帧叠在第二层淡入，130ms 后接管第一层再让第二层淡出 ——
+  // 两层短暂同图，所以看不到闪烁；比硬切更像「流畅运动」。
+  function showFrame(src) {
+    var tail = src.split('/').pop();
+    if (bm.src.split('/').pop() === tail) return;
+    bm2.src = src;
+    bm2.style.opacity = 1;
+    seqT.push(setTimeout(function () {
+      bm.src = src;
+      bm2.style.opacity = 0;
+    }, 130));
+  }
+
+  // 分镜版（时间轴照用户给定，总 2.5s）：
+  //   0-0.5s   站立，单手持械
+  //   0.5-1.2s 双手握柄、举过头顶，身体后仰蓄力
+  //   1.2-2.0s 身体前倾，双臂向前下凿击
+  //   2.0-2.5s 到位停顿 → 收势站立
+  function storyboard() {
+    seqT.forEach(clearTimeout);
+    seqT = [];
+    var base = 'preview-assets-v3/' + curChar + '-cut.png';
+    var frames = ATK[curChar];
+    if (!frames) { say(CHARS[curChar] + '暂无手部帧，分镜版不可用'); return; }
+    bm.src = base;
+    bm2.style.opacity = 0;
+    say('分镜：站立 0-0.5s → 蓄力 0.5-1.2s → 凿击 1.2-2.0s → 停顿收势 2.0-2.5s');
+    seqT.push(setTimeout(function () { showFrame(frames[1]); }, 500));
+    seqT.push(setTimeout(function () {
+      showFrame(frames[2]);
+      pulse('is-attack', 500);   // 凿击那一刻带一记突进，与帧同步
+    }, 1200));
+    seqT.push(setTimeout(function () { showFrame(base); }, 2100));
+  }
+
+  document.getElementById('btn-attack').onclick = attack;
+  document.getElementById('btn-story').onclick = storyboard;
+  document.getElementById('btn-defend').onclick = defend;
+  document.getElementById('btn-hands').onclick = function () {
+    handsOn = !handsOn;
+    this.classList.toggle('on', handsOn);
+    this.textContent = '手部帧动画：' + (handsOn ? '开' : '关');
+    say(handsOn ? '手部帧动画开 —— 对比一下不开时的「整体突进」' : '手部帧动画关 —— 只有整体突进，手和武器不动');
+  };
+  document.getElementById('btn-size').onclick = function () {
+    bigOn = !bigOn;
+    var panel = document.getElementById('player-panel');
+    panel.classList.toggle('game-size', !bigOn);
+    this.classList.toggle('on', bigOn);
+    this.textContent = '放大预览：' + (bigOn ? '开' : '关');
+    say(bigOn ? '放大预览（300px）—— 看动作细节' : '游戏桌面原尺寸（111px）—— 看实际观感');
+  };
+  document.getElementById('btn-combo').onclick = function () {
+    attack();
+    setTimeout(defend, 500);
+    say('连段：攻击 → 防御（间隔 500ms，验证动作衔接与形态回归）');
+  };
+  document.getElementById('btn-auto').onclick = function () {
+    if (autoT) { clearInterval(autoT); autoT = null; say('自动演示停止'); return; }
+    say('自动演示中（每 1.6s 交替），再点一次停止');
+    var tick = 0;
+    var step = function () { (tick++ % 2 ? defend : attack)(); };
+    step();
+    autoT = setInterval(step, 1600);
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('.char'), function (btn) {
+    btn.onclick = function () {
+      Array.prototype.forEach.call(document.querySelectorAll('.char'), function (b) { b.classList.remove('on'); });
+      btn.classList.add('on');
+      curChar = btn.dataset.char;
+      bm.src = 'preview-assets-v3/' + curChar + '-cut.png';
+      say('切换角色：' + CHARS[curChar] +
+        (ATK[curChar] ? '（有手部帧）' : '（暂无手部帧，攻击走整体突进）'));
+    };
+  });
+})();
+</script>
+</body>
+</html>

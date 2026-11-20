@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://cards/card_data.gd" id="1_script"]
+[ext_resource type="Script" path="res://cards/effect_spec.gd" id="2_step"]
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step0"]
+script = ExtResource("2_step")
+kind = 2
+target = 2
+value = 15
+upgraded_value = 18
+scale_source = 2
+scale_coef = 3
+upgraded_scale_coef = 4
+
+[resource]
+script = ExtResource("1_script")
+id = "iron_will"
+title = "钢铁意志"
+description = "获得 15 点格挡；每有 1 点力量，再获得 3 点。"
+cost = 2
+card_type = 1
+rarity = 3
+discipline = 0
+unlock_depth = 9
+effects = Array[ExtResource("2_step")]([SubResource("Step0")])

@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://cards/card_data.gd" id="1_script"]
+[ext_resource type="Script" path="res://cards/effect_spec.gd" id="2_step"]
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step0"]
+script = ExtResource("2_step")
+kind = 0
+target = 0
+value = 14
+upgraded_value = 18
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step1"]
+script = ExtResource("2_step")
+kind = 7
+target = 0
+value = -2
+upgraded_value = -3
+status_kind = 0
+
+[resource]
+script = ExtResource("1_script")
+id = "quake"
+title = "震地锤"
+description = "造成 14 点伤害，敌人失去 2 点力量。"
+cost = 2
+card_type = 0
+rarity = 1
+discipline = 0
+unlock_depth = 3
+effects = Array[ExtResource("2_step")]([SubResource("Step0"), SubResource("Step1")])

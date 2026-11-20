@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://cards/card_data.gd" id="1_script"]
+[ext_resource type="Script" path="res://cards/effect_spec.gd" id="2_step"]
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step0"]
+script = ExtResource("2_step")
+kind = 1
+target = 0
+value = 16
+upgraded_value = 21
+
+[resource]
+script = ExtResource("1_script")
+id = "rockbreak"
+title = "破岩"
+description = "造成 16 点伤害，无视格挡。"
+cost = 2
+card_type = 0
+rarity = 2
+discipline = 0
+unlock_depth = 6
+effects = Array[ExtResource("2_step")]([SubResource("Step0")])

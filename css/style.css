@@ -1,0 +1,1773 @@
+/* 《竖井》战斗原型 M1 —— 浅色主题 */
+
+:root {
+  --bg: #F1EFE8;
+  --panel: #FFFFFF;
+  --panel-2: #FAFAF7;
+  --border: #D3D1C7;
+  --border-strong: #B4B2A9;
+  --text: #2C2C2A;
+  /* M83 对比度重制：正文灰 #5F5E5A→#43423E（白底 8.9:1）、弱化灰 #888780→#6B6A62
+     （白底 5.4:1，过 AA）。原来的弱化灰只有 3.5:1，遗物/药水说明看不清 —— 用户实测反馈。 */
+  --muted: #43423E;
+  --hint: #6B6A62;
+
+  --digger: #5F5E5A;   /* 主题主色：地图连线、按钮、面板描边都用它 */
+  /* 当前角色的卡面框色（M6）：掘者铁灰 / 医师病绿 / 引火者燃橙（§8）。
+     开局时由 App.applyCharTheme 改写 —— 换角色，卡牌和资源标签一起换色。 */
+  --char: #5F5E5A;
+  --hp: #A32D2D;
+  --block: #185FA5;
+  --energy: #854F0B;
+
+  --radius: 10px;
+
+  /* 金色（M83 补定义）：图鉴点亮描边 / 术语下划线 / 成就奖牌 / 结局框。
+     M76 起一直在用 var(--gold) 但从未定义 —— 全部静默回退成灰色。
+     取 #8A6A1F：白底 5:1，作文字色也过 AA。 */
+  --gold: #8A6A1F;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  /* §5.1：4 条主干的地图最宽 772px，1100px 装得下且留有余量。 */
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px;
+  gap: 12px;
+}
+
+/* ---------- 顶栏 ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 角色切换（M6）。样式对齐 .pool-select，让两个下拉看起来是一家的 */
+.char-select {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* 未解锁的角色（§3.1 解锁链）在下拉里置灰，点不到。
+   文案本身也写清了条件，颜色只是辅助提示。 */
+.char-select option:disabled {
+  color: var(--hint);
+}
+
+.topbar .loc { font-weight: 500; color: var(--text); }
+.topbar .turn { margin-left: auto; }
+.topbar .seed { font-variant-numeric: tabular-nums; color: var(--hint); }
+
+/* ---------- 主面板 ---------- */
+
+.board {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 视图切换靠 hidden，但 hidden 的 display:none 会被 display:flex/grid 覆盖，必须显式压住 */
+[hidden] { display: none !important; }
+
+.view { flex: 1; min-height: 0; }
+
+.view-combat {
+  display: grid;
+  /* 日志栏 320 → 300 → 240（M21）：日志是次要信息（滚动查看即可），
+     舞台才是操作区 —— 菌母召唤到 3 只手下时舞台最挤，把宽度让给它。 */
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 12px;
+}
+
+.view-map {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* M42：节点面板改成绝对定位铺满整块地图区（见下方 .placeholder.np），
+     这里必须是定位祖先 —— inset:0 量到的才是「地图区」这块矩形。 */
+  position: relative;
+}
+
+.col-left {
+  display: flex;
+  flex-direction: column;
+  /* 不能用 space-between：它把剩余高度摊到每对相邻兄弟之间，
+     敌人面板 / 玩家面板 / 手牌 / 按钮 / 卡池之间就会各裂开一块空白。
+     改成从顶部依次堆叠，再让 .hand 用 margin-top:auto 把整块操作区压到底部。 */
+  justify-content: flex-start;
+  gap: 12px;
+  min-height: 0;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.panel-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--hint);
+}
+
+/* ---------- 单位面板 ---------- */
+
+/* 名牌退役（M25）：名字与角色不再常驻脚下，改成悬停浮层里的行内元素。
+   .unit-name 从 15px 收到 13px —— 在浮层里它是标题，不必再当立绘旁的大字。 */
+.unit-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.unit-role {
+  font-size: 11px;
+  color: var(--hint);
+}
+
+/* 血条（杀戮尖塔式）：贴在立绘脚下，我方敌方同款红条，白字压条居中。
+   M25：脚下只剩它一根，名牌（min-width 150/200）不再撑宽 —— 单位宽度变成
+   max(立绘, 条的下限)，而立绘是瘦高的全身像，撑不住一条能读数字的血条，
+   所以宽度下限写在这里兜底。 */
+.hprow {
+  display: block;
+  position: relative;
+  align-self: stretch;
+  /* M44：128 → 88。**必须跟立绘一起收** —— 单位宽度 = max(立绘宽, 本下限)，
+     立绘缩了而这里不动，单位一点不会变窄，对峙间距就拉不开（视觉上白缩）。
+     88 比小兵立绘宽度上限 98 略窄，保证血条不会反过来成为最宽的一块。 */
+  min-width: 88px;
+  margin-top: 2px;
+}
+
+.hpbar {
+  position: relative;
+  /* M44：15 → 14。**这是9px 数字能装下的理论下限** ——
+     1px 边框 + Segoe UI 下 9px 字的自然高 12px + 1px 余量 = 14px。
+     再矮数字就会顶出框（place-items 只管居中，管不了盒子比容器大）。
+     视觉上的「细」主要来自字号 10.5 → 9，不是条变矮。 */
+  height: 14px;
+  background: #5D1A16;
+  border: 1px solid #44100D;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 2px 5px rgba(48, 26, 20, .3);
+}
+
+.hpbar .fill {
+  height: 100%;
+  background: linear-gradient(180deg, #D45048, #A32D2D);
+  transition: width .18s ease;
+}
+
+/* 中毒预告段（M43）：回合开始要扣、还没扣的血显示成绿色 ——
+   扣的是当前血量的右端那一段（hp → hp − 毒层数），铺在红条上面；
+   毒层数 ≥ 当前血时绿段盖满整条（这一口毒致命，一眼看出）。
+   中毒无视格挡（combat.js 回合开始结算），预告量就是毒层数 ——
+   与「格挡能挡」的普通伤害预告（.intent 文案）不是一个东西。
+   绝对定位铺在 .fill 上方：.hplabel 是 .hprow 里更靠后的兄弟，
+   白字仍压在最上层，数字可读性不受影响。 */
+.hpbar .hp-pending {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(180deg, #43A047, #1B5E20);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, .35);
+  transition: left .18s ease, width .18s ease;
+}
+
+.hplabel {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  /* M44：10.5 → 9px。line-height 必须显式收 1 —— 继承 body 的 1.6 算出来是
+     14.4px，而血条内容区只有 12px，数字会顶出框。 */
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 700;
+  color: #FFFFFF;
+  /* 阴影同步收一档：条矮了，2px 模糊的字在 12px 内容区里糊成一片 */
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .55);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .3px;
+  pointer-events: none;
+}
+
+/* M30 Boss 血条与铭牌：血条加宽加高、名字 + 头衔常驻在血条下方。
+   小兵脚下只有一根数字血条，Boss 的名字就该挂出来 —— 「关底身份」
+   写在明面上，不用悬停去查。宽度预算（M21 铁律：先量再上）：
+   单敌 Boss 战单位被血条撑到 224px，1440 舞台余量充足；
+   满编（菌母 + 3 孢囊行者）走 data-alive 档回退，维持 M21 实测过的
+   逐像素预算 —— 那是群战场景，挤的是「阵」，不是「势」。
+   填充沿用敌我同族的红色渐变，只是整体加深一档 + 底边加一条暗脊：
+   一眼认得出「和 HP 是同一族」，又分得出「这不是一根普通的血条」。 */
+.hprow-boss { min-width: 152px; }
+
+.hprow-boss .hpbar {
+  /* M44：20 → 18，与普通条的 15 → 14 同一比例（× 0.9）。 */
+  height: 18px;
+  border-radius: 5px;
+  box-shadow:
+    0 2px 6px rgba(48, 26, 20, .38),
+    inset 0 2px 2px rgba(255, 255, 255, .14),
+    inset 0 -3px 4px rgba(0, 0, 0, .3);
+}
+
+.hprow-boss .hpbar .fill {
+  background: linear-gradient(180deg, #B93A30, #7C1A14);
+}
+
+.hprow-boss .hplabel {
+  font-size: 12px;
+  letter-spacing: .5px;
+}
+
+.boss-plate {
+  /* 绝对定位挂在血条（= .unit 的流内底部）正下方：不参与布局 ——
+     参与的话单位整体变高，铭牌恰好被舞台底部 padding 裁掉半行
+     （1440×900 实测）。单行式（名字 + 头衔同排，总高 ~16px），
+     舞台底部 padding 24px 放得下，也不会把满编预算顶出一格。 */
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 3px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.boss-plate b {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  color: #4A241C;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .65);
+}
+
+.boss-plate i {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .22em;
+  color: #8A4A38;
+}
+
+/* 满编 / 三敌档回退（M44 随基准同比例收窄：128 → 88、104 → 76）：
+   血条回默认下限，铭牌藏回悬停浮层 —— 信息没丢，只是群战里不单开一席。 */
+#enemy-panel[data-alive="3"] .hprow-boss { min-width: 88px; }
+#enemy-panel[data-alive="4"] .hprow-boss { min-width: 76px; }
+#enemy-panel[data-alive="3"] .boss-plate,
+#enemy-panel[data-alive="4"] .boss-plate { display: none; }
+
+/* .stats 容器随名牌一起退役（M25）：脚下只剩血条，资源 / 深度 / 状态图标
+   全在悬停浮层里（浮层自带 flex 排版，见 art.css 的 .stats-more）。 */
+
+.stat {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--muted);
+}
+
+/* 能量条（M25）：从脚下的名牌搬到舞台左上角，与血条同族形制
+   （深底 + 填充 + 白字压条居中）—— 一眼认出是「同一族的资源」，
+   不必在舞台里另造一套视觉语言。配色走 --energy（琥珀金），
+   与红色的 HP 明确区分，又都落在暖色系里。 */
+.energybar {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 132px;
+  height: 15px;
+  border-radius: 4px;
+  background: #3B2A10;
+  border: 1px solid #2A1D0B;
+  overflow: hidden;
+  box-shadow: 0 2px 5px rgba(58, 40, 16, .25);
+}
+.energybar .fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(180deg, #D79A3C, #8A5A10);
+  transition: width .18s ease;
+}
+/* 能量文本：与 .hplabel 同款「白字压条居中」（探针绑的就是这句话的文本） */
+.stat-energy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #FFFFFF;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .55);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .3px;
+}
+/* .stat-block / .stat-str 已随 M20 状态图标化退役（格挡/增益改走 .bicon 图标片） */
+/* 角色资源（M6）：颜色跟着角色走。掘者没有资源，所以永远不出现这个标签 */
+.stat-res { border-color: var(--char); color: var(--char); }
+/* 满了：医师到 5 点后每回合的自动累积全白费，用实心提示一下 */
+.stat-res.is-full { background: var(--char); color: #FFFFFF; }
+
+/* 意图胶囊（M45 加强）：敌人头顶那一条「它下一手要干什么」，是战斗里
+   最该被一眼看见的信息。原来的淡粉 / 淡黄底在 M19 之后的深浅位图背景上
+   会被吃掉，现在改成「白色实底 + 加粗同色描边」，并抬一档字号与字重。
+   文字前缀「意图 · 」与类名 .intent-atk / .intent-buff / .intent-none
+   都没动 —— 探针绑死了这三样（ui-probe-boss 断言 textContent 以「意图」开头）。 */
+.intent {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  display: inline-block;
+  letter-spacing: .2px;
+  box-shadow: 0 2px 7px rgba(45, 42, 36, .22);
+}
+.intent .intent-text { text-shadow: none; }
+/* M53d：攻击意图的红边框 + 红内环整体退役（用户「后面不再画红框」）——
+   攻击语义由粉底 + 红字 + ⚠ 图标承担，描边换中性主题色，不再画框 */
+.intent-atk { background: #FDF3F2; color: #9C2620; border: 1px solid var(--border); }
+.intent-buff { background: #FDF8EC; color: #7A4A08; border: 2px solid #D9B15E; }
+.intent-none { background: var(--panel-2); color: var(--hint); border: 1px solid var(--border); }
+
+/* ---------- 战斗记录 ---------- */
+
+.logpanel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.log {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.logline {
+  padding: 3px 0;
+  border-bottom: 1px solid #F1EFE8;
+}
+
+/* ---------- 手牌 ---------- */
+
+.hand {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  /* 撑开 .col-left 里的剩余高度，把「手牌 + 按钮 + 卡池」整块沉到底部，
+     中间只留一处空白（敌我面板与操作区之间），而不是散成好几块。 */
+  margin-top: auto;
+  min-height: 158px;
+  padding: 10px 4px 0;
+}
+
+.card {
+  position: relative;
+  flex: 0 0 auto;
+  width: 108px;
+  height: 148px;
+  /* M27 铭牌化：左上一道高光斜纹 + 微投影，像一块悬着的金属牌 */
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 42%),
+    var(--panel);
+  border: 2px solid var(--rar, var(--border-strong));
+  border-radius: var(--radius);
+  padding: 10px 8px 8px;
+  cursor: pointer;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, .55),
+    0 2px 5px rgba(44, 44, 42, .12);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+
+/* M27b 选中发光：指针放上待打的卡，边框按稀有度色亮起
+   —— 实色亮环贴边 + 调亮色近光（color-mix 提亮，铁灰也能发出银光）+ 大范围柔光。
+   z-index 提层：光晕不被右侧相邻卡盖住（DOM 后面的卡默认画在先来的上面） */
+.card:hover {
+  z-index: 5;
+  transform: translateY(-10px);
+  box-shadow:
+    0 4px 0 #E6E4DC,
+    0 0 0 3px var(--rar, transparent),
+    0 0 14px 3px color-mix(in srgb, var(--rar, #7E7A6A) 60%, #FFFFFF),
+    0 0 30px 10px var(--rar-soft, transparent);
+}
+
+/* 按下瞬间再亮一档：牌被「按进」选中位 */
+.card:active {
+  z-index: 5;
+  transform: translateY(-10px) scale(.97);
+  box-shadow:
+    0 2px 0 #E6E4DC,
+    0 0 0 3px var(--rar, transparent),
+    0 0 16px 5px color-mix(in srgb, var(--rar, #7E7A6A) 60%, #FFFFFF),
+    0 0 36px 13px var(--rar-soft, transparent);
+}
+
+.card.disabled {
+  opacity: .42;
+  cursor: not-allowed;
+}
+
+.card.disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.card .cost {
+  position: absolute;
+  top: -9px;
+  left: -9px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--energy);
+  color: #FFFFFF;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.card .cname {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.card .ctype {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--hint);
+  text-align: center;
+}
+
+.card .ctext {
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+  text-align: center;
+}
+
+.hand-empty {
+  color: var(--hint);
+  font-size: 12px;
+  padding: 40px 0;
+}
+
+/* ---------- 按钮 / 结算 ---------- */
+
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid var(--border-strong);
+}
+
+.btn-primary {
+  background: var(--digger);
+  color: #FFFFFF;
+  border-color: var(--digger);
+}
+
+.btn-primary:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.result-win { background: #EAF3DE; color: #27500A; border: 1px solid #C0DD97; }
+.result-lose { background: #FCEBEB; color: #791F1F; border: 1px solid #F7C1C1; }
+
+/* ---------- 卡池验证面板 ---------- */
+
+.poolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+/* P0-2：调试卡池栏默认隐藏（App.bindOnce 按 ?dev=1 决定）。
+   必须 own 一条 display:none —— 上面显式的 display:flex 会压掉
+   hidden 属性的浏览器默认样式，这是踩过经典坑。 */
+.poolbar[hidden] { display: none; }
+
+.pool-label {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.pool-select {
+  flex: 1;
+  min-width: 180px;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.pool-depth {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+}
+
+.pool-depth input {
+  width: 56px;
+  padding: 4px 6px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.stat-depth {
+  background: #EFE9DE;
+  color: #5A4A2F;
+  border-color: #DCCDB4;
+}
+
+.cup {
+  color: #1D9E75;
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+/* ==================== M3：地图 ==================== */
+
+.topbar .runinfo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.rp { color: var(--hint); }
+.rp b { color: var(--text); font-weight: 500; }
+
+/* M87/V4：开发参考信息（主干/走法/种子）默认藏，?dev=1 挂 html.dev-on 才露。
+   与移动端 nth-child 隐藏规则同向，不冲突。 */
+.rp-dev { display: none; }
+html.dev-on .rp-dev { display: inline; }
+
+/* M87/V4：HP/金币是玩家真正每回合要扫的两项 —— 胶囊化提层级，
+   其余（刻痕/遗物托盘）保持纯文本，主次一眼分开。 */
+.rp-key {
+  background: var(--panel-2, #F2F0EA);
+  border: 1px solid var(--border, #D8D4C8);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.mapscroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 6px 24px;
+}
+
+/* max-content 是必须的：块级元素默认撑满，margin:auto 会失效，地图就贴左了 */
+.mapwrap {
+  position: relative;
+  width: max-content;
+  margin: 0 auto;
+}
+
+.mapsvg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.edge {
+  stroke: rgba(95, 94, 90, .3);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  fill: none;   /* M70：连线改为贝塞尔 path，必须关填充 */
+}
+
+.edge-walked {
+  stroke: #8C4A42;
+  stroke-width: 2.4;
+}
+
+.mapnodes { position: relative; }
+
+.mnode {
+  position: absolute;
+  /* 必须与 RenderMap.NODE 一致 —— 定位按 NODE 算圆心，这里差几像素就会偏心 */
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  background: var(--panel);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+}
+
+.mnode.is-locked { opacity: .34; cursor: default; }
+.mnode.is-done   { opacity: .55; cursor: default; }
+
+/* 可走节点要一眼看出来：加深边框 + 光环 */
+.mnode.is-open {
+  border-color: var(--digger);
+  box-shadow: 0 0 0 4px rgba(95, 94, 90, .26);
+}
+
+.mnode.is-open:hover { transform: scale(1.12); }
+
+.mnode.is-cur {
+  transform: scale(1.16);
+  box-shadow: 0 0 0 5px rgba(95, 94, 90, .22);
+  font-weight: 700;
+  cursor: default;
+}
+
+/* 节点按类型配色 —— 浅底 + 深字，保证对比度 */
+
+.mt-entry   { background: #FFFFFF; border-color: var(--border-strong); color: var(--muted); }
+.mt-monster { background: #FBEAEA; border-color: #D98A8A; color: #8B2B2B; }
+.mt-elite   { background: #FDF0DC; border-color: #DDAE63; color: #7A5417; }
+.mt-boss    { background: #F3D6D6; border-color: #A33A3A; color: #6E1A1A; }
+.mt-event   { background: #EFEAFB; border-color: #B4A5DC; color: #4B3A80; }
+.mt-shop    { background: #E8F3EA; border-color: #93C7A1; color: #2A5C38; }
+.mt-rest    { background: #FDEFE0; border-color: #E0AC7C; color: #7C4A22; }
+.mt-chest   { background: #FBF3D9; border-color: #D9C169; color: #6E5A15; }
+
+/* ---------- 占位面板（M4 / M5 实装的节点类型） ---------- */
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: 520px;
+  margin: 0 auto 12px;
+  padding: 22px 24px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+/* 不设 background/color —— 交给 .mt-* 提供类型色，避免同级选择器按顺序互相盖 */
+.ph-icon {
+  width: 52px;
+  height: 52px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.ph-icon.ph-win  { background: #EAF3DE; border-color: #C0DD97; color: #27500A; }
+.ph-icon.ph-lose { background: #FCEBEB; border-color: #F7C1C1; color: #791F1F; }
+
+.ph-title { font-size: 16px; font-weight: 500; }
+.ph-depth { font-size: 12px; color: var(--hint); }
+
+.ph-desc {
+  margin: 8px 0 14px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+.ph-todo { font-size: 12px; color: var(--hint); }
+
+/* ---------- 节点面板（事件 / 商店 / 休息 / 宝箱 / 战斗奖励） ---------- */
+
+/* 内容比占位面板多得多：左对齐、自己滚动。
+   M42：面板改成**绝对定位铺满整块地图区** —— 打开面板时地图被完全盖住，
+   不再和它抢纵向空间（M41 的 max-height: 80vh 会把地图挤到只剩 66px）。
+   定位祖先是 .view-map（见上），inset:0 直接量到「地图区」这块矩形。
+   z-index 必须有：.mapwrap / .mapnodes 也是定位元素、DOM 又排在后面，
+   不抬层的话地图会盖在面板上面。
+   margin 必须归零：inset:0 + margin:auto 会退化成「居中且按内容收缩」。
+   max-width 必须显式 none：`.placeholder` 的 520px 上限特异性更低，
+   不重写会把面板压回 520。 */
+.placeholder.np {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  margin: 0;
+  align-items: stretch;
+  gap: 0;
+  max-width: none;
+  overflow-y: auto;
+  padding: 16px 20px 18px;
+  text-align: left;
+}
+
+.np-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.np-icon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  background: var(--panel-2);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.np-title { font-size: 15px; font-weight: 500; }
+.np-sub { font-size: 12px; color: var(--hint); }
+
+.np-status {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--hint);
+  font-variant-numeric: tabular-nums;
+}
+.np-status b { color: var(--text); font-weight: 500; }
+
+/* 卡片库（M54）：节点面板里的只读卡库查询层。fixed 盖满视口 ——
+   打开时挡住面板本体，只与查询层交互；收起后原样回来。 */
+.np-lib {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(250, 250, 247, .985);
+  overflow-y: auto;
+  padding: 16px 20px 28px;
+}
+.np-lib-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.np-lib-bar .np-h { margin: 0; }
+.np-lib-bar .btn:last-child { margin-left: auto; }
+/* 已有的卡镶一道绿描边 + 数量角标（M54b：只显示已获得的卡，无「未拥有」态） */
+.np-shopitem.is-owned .npc { outline: 2px solid #4E7A46; outline-offset: 1px; }
+.np-ownbadge {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #4E7A46;
+  padding: 3px 0 6px;
+}
+
+.np-text {
+  margin-bottom: 14px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+
+.np-got { color: var(--text); }
+.np-dim { font-size: 12.5px; color: var(--muted); }
+
+.np-h {
+  margin: 14px 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--hint);
+  letter-spacing: .04em;
+}
+
+/* ---------- 选项（事件 / 休息点） ---------- */
+
+.np-opts { display: flex; flex-direction: column; gap: 8px; }
+
+.np-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  text-align: left;
+  font-family: inherit;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color .12s ease, background .12s ease;
+}
+
+.np-opt:hover:not(:disabled) { border-color: var(--digger); background: #FFFFFF; }
+.np-opt:disabled { opacity: .5; cursor: default; }
+
+.np-opt-label { font-size: 13px; font-weight: 500; color: var(--text); }
+.np-opt-hint { font-size: 12px; color: var(--hint); }
+
+/* ---------- 卡牌（奖励 / 商店 / 选牌） ---------- */
+
+.np-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.np-pick {
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform .12s ease;
+}
+.np-pick:hover { transform: translateY(-3px); }
+
+.npc {
+  position: relative;
+  width: 150px;
+  /* M65 统一卡高：240 = 实测三角色全卡池（129 张）最大卡高 239（守墓人
+     「最后一把火」文本 4 行）+ 1 取整。此前用最小高度兜底，文本行数一变
+     卡就参差（实测 192/201/220/239 四档）—— 卡片库 / 商店 / 选卡界面的
+     格子高低不齐。改定高后短文本卡底部留白，长文本被 overflow 裁掉
+     （新增文本若超过 4 行需回来重测这个值）。遗物卡同壳，最高 192 ≤ 240。
+     ⚠️ 本规则内不放旧属性名 —— 尺寸类负向断言按字面量扫。 */
+  height: 240px;
+  overflow: hidden;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 42%),
+    var(--panel);
+  border: 2px solid var(--rar, var(--border-strong));
+  border-radius: var(--radius);
+}
+
+.npc-cost {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--energy);
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.npc-name { font-size: 13px; font-weight: 500; color: var(--text); }
+.npc-type { font-size: 11px; color: var(--hint); }
+.npc-text { font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+
+/* 类型色顶条已退役（M27）：边框改按稀有度上色（--rar），
+   类型信息仍由 .npc-type / .ctype 的文字色表达 */
+
+/* ---------- 商店 ---------- */
+
+.np-shopitem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.np-buy { width: 100%; }
+.np-sold { padding: 5px 0; font-size: 12px; color: var(--hint); }
+.np-empty { padding: 6px 0; font-size: 12px; color: var(--hint); }
+.np-svc { display: flex; flex-wrap: wrap; gap: 8px; }
+.np-go { margin-top: 14px; align-self: flex-start; }
+
+/* ---------- 多敌人（M5）---------- */
+
+.enemy-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.target-hint { font-size: 11px; color: var(--hint); }
+
+/* ---------- 战斗舞台（M11b，版式对齐 preview-combat-v3） ----------
+   开放场景：我方贴左端、敌人集群贴右端，中间空出整条中场；
+   单位竖排（形象在上、名牌血条在下），全身像落地站在地平线上。
+   #player-panel / #enemy-panel 只是逻辑容器（探针按 id 找单位），
+   面板壳在这里剥掉。 */
+.battle-stage {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  /* M44：立绘整体缩小后，对峙距离从 56 上限提到 88/14.3vw/221 ——
+     省下来的宽度还给间距。满编（3-4 敌）时敌人一侧变宽，
+     由下面的 [data-crowd] 规则把这条 gap 收回去。
+     间距是可变的，溢出不可接受。 */
+  justify-content: center;
+  gap: clamp(88px, 14.3vw, 221px);
+  flex: 1;
+  min-height: 300px;
+  /* 左右 20 → 16（M21）：舞台是最紧的一处，把留白也让给单位 */
+  padding: 18px 16px 30px;
+  background: linear-gradient(180deg, #FBFAF6 0%, #F3F1E9 62%, #E7E4D8 100%);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  /* M87/V10：描边加深 + 四向暗角（叠在 M21 左右渐晕上）——
+     舞台从「画中画」变成聚光的「舞台」，立绘与地面光影更聚焦。 */
+  border-color: var(--border-strong);
+  box-shadow: inset 60px 0 80px -60px rgba(95, 94, 90, .18),
+              inset -60px 0 80px -60px rgba(95, 94, 90, .18),
+              inset 0 0 64px rgba(56, 52, 44, .22);
+}
+
+/* 地平线：M19 起由背景位图自身的大地面承担（低地平线构图，地面占约六成），
+   M15 的 ::before 地面延伸带已随旧图退役；这条旧参考线早已删除。 */
+
+#player-panel,
+#enemy-panel {
+  order: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: flex-end;
+  /* M23→M44：同一方内部的单位间距也拉开 —— 原来 12px 让立绘几乎挨在一起，
+     多敌时像一坨；立绘缩小后 18px 会显得更松，跟着放大到 30px。
+     满编时由 art.css 按 data-alive 收窄。 */
+  gap: 30px;
+  min-width: 0;
+  /* 禁止收缩：舞台内容超宽时宁可让它被裁掉，也不要压到对面身上。
+     M25 起单位只剩「立绘 + 血条」两层，悬停浮层是绝对定位、不参与布局，
+     所以能挤压单位宽度的只剩立绘本身了。 */
+  flex-shrink: 0;
+}
+/* 满编收窄（M23 → M44 随基准放大）：3-4 个敌人时敌人一侧变宽，
+   对峙距离让位给单位本身 —— 单位之间挤一挤可以忍，被裁出界不行。
+   M44 量过的预算：1440 下满编敌人面板 352、玩家 101，
+   gap 99 + 两端各 117px 余量 —— 比 M43 的 52 更宽松，因为立绘小了一档。 */
+.battle-stage[data-crowd="3"] { gap: 125px; }
+.battle-stage[data-crowd="4"] { gap: 99px; }
+/* DOM 里敌人在前，视觉上要它在右 */
+#enemy-panel {
+  order: 1;
+  justify-content: flex-end;
+  /* 不换行：换行会把多只怪叠成上下两排，上面那排会被舞台裁掉。
+     敌人再多也横向排，靠下面的立绘尺寸上限控制总宽。 */
+  flex-wrap: nowrap;
+}
+
+/* 舞台 HUD（M25）：贴舞台左上角的一行 —— 能量条 + 地点标签 + 换目标提示。
+   必须是 .battle-stage 的直接子元素：#enemy-panel 自带 position: relative
+   且只占内容宽（靠右），挂在它里面就会被钉在面板上、漂到舞台中部。
+   z-index 压在面板之上 —— 它是一层覆盖信息，不参与构图。 */
+.stage-hud {
+  position: absolute;
+  top: 14px;
+  left: 18px;
+  display: flex;
+  /* center 而不是 baseline：这一行里有能量条（块级元素），
+     按文字基线对齐会把它顶得偏上。 */
+  align-items: center;
+  gap: 12px;
+  z-index: 2;
+  /* M25：这块现在压在背景位图上（不再是舞台顶部的浅色渐变），
+     而地点文字用的是 --hint 灰 —— 直接放上去读不清。给一层浅色胶囊打底，
+     顺带把「能量条 + 地点 + 提示」收成一个整体。 */
+  padding: 4px 12px 4px 5px;
+  background: rgba(255, 255, 255, .84);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(40, 38, 34, .14);
+}
+
+/* 手机档（M25）：舞台在那档是纵向的（我方一行、敌方一行），
+   绝对定位的 HUD 会正好压在玩家立绘头上 —— 改成静态，自成一条信息带。 */
+@media (max-width: 640px) {
+  .stage-hud {
+    position: static;
+    align-self: flex-start;
+  }
+}
+
+.target-tag {
+  /* M53d：原红底读感是「红框」—— 换中性墨色，信息保留（探针负向断言扫红值） */
+  font-size: 10px;
+  font-weight: 500;
+  color: #FFFFFF;
+  background: #5F5E5A;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* 每个敌人一个「立绘 + 名牌」的竖排单位；点一下设为当前目标 */
+.eunit {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+}
+
+/* 前后排错位（M23）：Boss / 精英退到后排 —— 整体抬高一段，
+   双脚落在画面更高的位置，就是站得更远。
+   背景图是低地平线的大地面（M19），越远的地面在画面里越高，
+   所以抬高不是「浮起来」，是符合透视的纵深。
+   谁能当后排由渲染层的 rankOf 判定（kind = boss / elite），
+   单敌时一律 front —— 只有一只怪，没有前后可言。
+   3 只手下 + Boss 的编队里，这条正是「老大在后、喽啰在前」的那一下。 */
+.eunit[data-rank="back"] { margin-bottom: 25px; }
+
+/* 目标常驻指示：**没有了**（M53c，用户反馈「选择敌人红色圆框还有，后面不再画红框」）。
+   M53 曾加过脚下极淡红色光晕（is-target::after），实测读感就是一圈红框 —— 整体删除。
+   目标指向只靠三处即时反馈：拖拽瞄准高亮（art.css is-aim，金色）/ 悬停浮层的
+   「目标」小标 / 出手与受击动画本身。⚠️ is-target 类仍在（逻辑标记 +
+   浮层小标用），但**不许再给它挂任何红框 / 红圈 / 红晕类视觉** ——
+   再加常驻指示先过用户。 */
+
+/* .eunit.is-dead（半透明尸体 + 名字划掉）随 M21 删除：
+   死亡单位已不进 DOM，尸体不再占位。 */
+
+/* 胜负横幅：悬浮在舞台中央 */
+#result {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  min-width: 320px;
+  box-shadow: 0 8px 24px rgba(60, 58, 52, .25);
+}
+
+/* 负值状态（锈冠给的「敏捷 −1」） */
+.stat-neg { border-color: #A32D2D; color: #A32D2D; }
+
+/* Boss 战预告的属性行 */
+.np-bossstats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+  font-size: 12px;
+  color: var(--hint);
+}
+
+.np-bossstats span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+/* ============================================================
+   移动端适配（M13：iOS Safari / 触屏手机）
+   舞台在 M12b 学会了「窄了怎么缩」，但窄 ≠ 手机：
+     · 手机是竖屏 + 触控，没有 hover，也没有鼠标精度
+     · 顶栏 7 项挤在一行会被压成竖排单字（实测 390px 宽就是这样）
+     · #app 原本是 height:100% 的锁屏布局 —— 手机上一屏装不下，
+       溢出的部分再也滚不到（不是难看，是功能没了）
+   所以手机档改成「自然流式 + 页面整体滚动」：次要信息收起来，
+   地图区自己滚，触控目标给到 42px 以上。
+   断点 720px：再宽就是平板/桌面，锁屏布局反而更好用；
+   探针跑在 800×600，不落进这一段，几何断言不受影响。
+   ============================================================ */
+@media (max-width: 720px) {
+  /* 仍然锁一屏，但让每块区域自己滚（页面本身不滚）——
+     手机上「地图区滚 / 战斗区滚」比整页滚好用：顶栏与按钮不会跟着跑掉。
+     dvh 是动态视口高（iOS 15.4+），地址栏收起时自动跟着变；旧机走 height:100% 兜底。 */
+  #app {
+    height: 100%;
+    height: 100dvh;
+    padding: 8px;
+    gap: 8px;
+    /* 刘海屏 / 圆角屏：padding 只在真有安全区的设备上变大 */
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  /* 地图页：地图区吃掉剩余高度、自己滚（scrollToCurrent 要靠 clientHeight 定位） */
+  .view-map { display: flex; flex-direction: column; }
+  .mapscroll { flex: 1 1 auto; min-height: 0; }
+  /* 战斗页：整块自己滚 —— 舞台 + 手牌 + 操作区通常比一屏更长。
+     行高必须是 max-content：容器高度固定时，auto 行会把 col-left 压扁，
+     结果舞台塞不下两行单位、敌人行直接压到手牌上。 */
+  .view-combat {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    align-content: start;
+    grid-auto-rows: max-content;
+  }
+
+  /* 顶栏：换行而不是把字压竖；主干/走法/种子是开发参考信息，手机上让位 */
+  .topbar { flex-wrap: wrap; gap: 6px 10px; padding: 8px 10px; }
+  .topbar .loc { white-space: nowrap; }
+  .topbar .runinfo { flex-wrap: wrap; gap: 4px 10px; }
+  .topbar .runinfo .rp:nth-child(3),
+  .topbar .runinfo .rp:nth-child(4),
+  .topbar .runinfo .rp:nth-child(5) { display: none; }
+
+  /* 节点 38px 小于触控推荐的 44px：用透明伪元素把可点区域撑到 46px。
+     不动 .mnode 本身尺寸 —— 那个值必须与 RenderMap.NODE 严格一致，改不得。 */
+  .mnode::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+  }
+
+  /* 手牌：横向滑，不再被舞台右缘切掉第 4 张。
+     别让 flex 压这几块 —— 手牌被压到比卡片还矮时，卡片会从框里溢出去
+     （overflow-x:auto 会把纵向也变成裁切），看起来就是「卡面全没了」。 */
+  .hand { flex: 0 0 auto; margin-top: 6px; overflow-x: auto; padding-bottom: 6px; }
+  .actions, .poolbar { flex: 0 0 auto; }
+
+  /* M87/V9-C：手牌半露（用户圈阅 C 案）—— 裁切面压在插画窗（54px）+
+     牌名一带：费用角标、牌名可读，全文轻点展开。
+     用 clip-path 而非 height：overflow-x 横滑保留（height 裁切会把
+     overflow-x:auto 的纵向滚动条一并引出来，注释里踩过这个坑）。
+     draw() 每次重绘挂回 .is-folded，点一下展开、重绘自动收回。 */
+  .hand { position: relative; }
+  .hand.is-folded { clip-path: inset(0 0 calc(100% - 104px) 0); }
+  .hand.is-folded::after {
+    content: '展开手牌 ▴';
+    position: absolute; left: 50%; top: 82px; transform: translateX(-50%);
+    font-size: 10px; color: var(--muted);
+    background: var(--panel); border: 1px solid var(--border-strong);
+    border-radius: 999px; padding: 1px 10px;
+    box-shadow: 0 1px 4px rgba(44, 44, 42, .18);
+    pointer-events: none;
+  }
+
+  /* 触控目标：Apple 建议 ≥44px，按钮拉到 42 起步 */
+  .btn { min-height: 42px; padding: 10px 18px; }
+  .actions .btn { flex: 1; }
+  .poolbar { font-size: 12px; }
+}
+
+/* 触屏没有 hover：把「悬停才出现」的位移关掉。
+   否则 iOS 上点一下会一直粘在抬起状态（卡片卡在半空放不下来）。 */
+@media (hover: none) {
+  .card:hover { transform: none; box-shadow: none; }
+  .card.disabled:hover { transform: none; }
+  .mnode.is-open:hover { transform: none; }
+  .np-pick:hover { transform: none; }
+  .np-opt:hover:not(:disabled) { background: var(--panel-2); }
+}
+
+/* 触控基础：去掉点击灰块、去掉双击缩放那 300ms 延迟 */
+* { -webkit-tap-highlight-color: transparent; }
+button, .card, .mnode, .np-opt, .np-pick { touch-action: manipulation; }
+
+/* ---------- 云存档面板（M52）---------- */
+
+/* 顶栏按钮下挂的小面板：绝对定位在顶栏右下方，不影响任何布局尺寸。
+   宽度收窄，手机上也不至于顶出屏幕。 */
+.cloud-panel {
+  position: absolute;
+  top: 54px;
+  right: 12px;
+  z-index: 60;
+  width: 252px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 24px rgba(44, 44, 42, .14);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.cloud-line { margin: 0 0 6px; line-height: 1.5; }
+.cloud-line b { color: var(--text); }
+.cloud-dim { color: var(--hint); }
+.cloud-note { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); color: var(--text); }
+
+.cloud-row { display: flex; gap: 6px; margin: 6px 0; }
+.cloud-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}
+.cloud-input:focus { outline: 1px solid var(--char); }
+
+/* 窄屏：面板贴右收窄，别顶出屏幕 */
+@media (max-width: 640px) {
+  .cloud-panel { width: min(252px, calc(100vw - 24px)); }
+}
+
+/* ---------- 主菜单（M55）---------- */
+
+.view-menu {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 图鉴等长内容页：允许滚动（配合 .menu-box 的 margin:auto，
+     内容不超屏时依旧居中，超屏时贴顶可滚 —— 修复顶部截断） */
+  overflow-y: auto;
+}
+
+.menu-box {
+  width: 100%;
+  max-width: 720px;
+  margin: auto; /* flex 子项 auto 边距：不超屏时垂直居中；超屏时边距归零、容器滚动 */
+  padding: 28px 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.menu-title {
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  text-indent: 0.35em; /* 抵消末字的字距，视觉居中 */
+  color: var(--text);
+}
+
+.menu-sub {
+  margin: 2px 0 22px;
+  font-size: 11px;
+  color: var(--hint);
+  letter-spacing: 0.22em;
+}
+
+.menu-page { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.menu-page[hidden] { display: none; }
+
+.menu-btn {
+  width: 240px;
+  padding: 12px 0;
+  font-size: 16px;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+}
+
+.menu-continue-list { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+.menu-page-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.2em;
+  margin-top: 6px;
+}
+
+/* 角色卡：三张并排，窄屏折行 */
+.menu-chars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  width: 100%;
+}
+
+.mchar {
+  width: 200px;
+  padding: 12px 10px;
+  background: var(--panel-2);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+
+.mchar:hover:not(.is-locked) { border-color: var(--border-strong); }
+
+.mchar.is-sel {
+  border-color: var(--char);
+  box-shadow: 0 0 0 2px var(--char);
+  transform: translateY(-2px);
+}
+
+.mchar-portrait {
+  position: relative;
+  height: 150px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.mchar-portrait img {
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.mchar.is-locked { cursor: not-allowed; }
+.mchar.is-locked .mchar-portrait img { filter: grayscale(1) opacity(.35); }
+
+.mchar-lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  background: rgba(241, 239, 232, 0.55);
+}
+
+.mchar-lock-icon { font-size: 22px; }
+
+.mchar-name { font-size: 15px; font-weight: 700; margin-top: 8px; }
+.mchar-role { font-size: 11px; color: var(--hint); }
+.mchar-dl { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.mchar-blurb { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+
+/* 深度等级排：DL1–DL10 */
+.menu-dls { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+
+.mdl-btn {
+  min-width: 46px;
+  padding: 7px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.mdl-btn:hover:not(:disabled) { border-color: var(--border-strong); }
+
+.mdl-btn.is-sel {
+  color: #fff;
+  background: var(--char);
+  border-color: var(--char);
+  font-weight: 700;
+}
+
+.mdl-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+.menu-hint { font-size: 11px; color: var(--hint); min-height: 1.4em; }
+
+.menu-actions { display: flex; gap: 10px; margin-top: 8px; }
+
+/* 窄屏：卡片竖排铺满 */
+@media (max-width: 640px) {
+  .mchar { width: 100%; max-width: 320px; }
+  .mchar-portrait { height: 180px; }
+  .menu-btn { width: 100%; max-width: 280px; }
+}
+
+/* ==================== P1-4 设置面板（M58）==================== */
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 6px 2px;
+}
+.set-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #8a5a2b;
+  cursor: pointer;
+}
+.set-danger { color: #a33a33; border-color: #a33a33; }
+.set-danger:hover { background: rgba(163, 58, 51, .08); }
+
+/* ==================== 图鉴·战绩·成就（M76 / R1）==================== */
+
+/* 页签排：三条均分 */
+.codex-tabs { display: flex; gap: 8px; width: 100%; max-width: 680px; }
+.codex-tab {
+  flex: 1; padding: 9px 0; font-size: 13.5px; font-family: inherit;
+  letter-spacing: .2em; text-indent: .2em; color: var(--muted);
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 9px; cursor: pointer;
+}
+.codex-tab.is-on { background: var(--text); color: #fff; border-color: var(--text); font-weight: 700; }
+
+/* 内容区：左对齐（menu-page 是居中列布局，这里要铺开） */
+.codex-body {
+  width: 100%; max-width: 680px; text-align: left;
+  font-size: 12.5px; color: var(--muted);
+}
+
+.codex-sec {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  letter-spacing: .18em; margin: 14px 0 8px;
+}
+.codex-sec:first-child { margin-top: 0; }
+.codex-cnt { font-weight: 400; letter-spacing: 0; color: var(--hint); }
+
+/* M87/V6：点亮微型进度条（跟在「已点亮 x/N」后面） */
+.codex-litbar {
+  display: inline-block; width: 64px; height: 5px; margin-left: 6px;
+  vertical-align: middle; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 3px; overflow: hidden;
+}
+.codex-litbar i { display: block; height: 100%; background: var(--gold); }
+/* M87/V6：未解锁卡按 DL 折叠 —— 原生 details，默认闭合 */
+.codex-fold { margin-top: 8px; }
+.codex-fold > summary {
+  cursor: pointer; font-size: 11px; color: var(--hint);
+  padding: 6px 2px; user-select: none;
+}
+.codex-fold > summary:hover { color: var(--muted); }
+.codex-fold[open] > summary { margin-bottom: 6px; }
+
+/* 角色芯片 */
+.codex-chips { display: flex; gap: 6px; justify-content: center; margin-bottom: 4px; }
+.codex-chip {
+  padding: 5px 14px; font-size: 12px; font-family: inherit;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--muted); cursor: pointer;
+}
+.codex-chip.is-on { background: var(--char); color: #fff; border-color: var(--char); font-weight: 700; }
+
+/* ---- 卡牌网格 ---- */
+.codex-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+.ccard {
+  position: relative; min-height: 86px; padding: 8px 8px 7px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px;
+  font-size: 11px; line-height: 1.5;
+}
+.ccard.is-lit { box-shadow: 0 0 0 1.5px var(--gold); }
+.ctop { display: flex; justify-content: space-between; align-items: center; gap: 4px; margin-bottom: 3px; }
+.cname { font-weight: 700; font-size: 12px; color: var(--text); }
+.ccost {
+  width: 17px; height: 17px; border-radius: 50%; flex: none;
+  background: var(--text); color: #fff; font-size: 11px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.crar { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.rar-basic { background: #A8A79E; }
+.rar-common { background: #6E8B4E; }
+.rar-uncommon { background: #4A7A8C; }
+.rar-rare { background: #B08A2E; }
+.rar-curse { background: #8C5A7A; }
+.ctext { color: var(--muted); }
+.ccard.is-dim { background: var(--panel); border-style: dashed; }
+.ccard.is-dim .cname, .ccard.is-dim .ctext { color: var(--hint); }.ccard.is-dim .ccost { background: var(--border); }
+.ccard.is-dim .crar { background: var(--border); }
+.clock {
+  position: absolute; inset: 0; border-radius: 9px;
+  background: rgba(241, 239, 232, .55);
+  display: flex; align-items: center; justify-content: center; font-size: 15px;
+}
+
+/* ---- 遗物网格 ---- */
+.codex-relics { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 8px; }
+.rcard {
+  padding: 8px 10px; background: var(--panel-2);
+  border: 1px solid var(--border); border-radius: 9px;
+}
+/* M87/V8：图鉴遗物卡稀有度左边条 —— 与卡面的稀有度宝石点同一套色，
+   用独立 rc- 类（不挂 rar-*，避开全局 .rar-rare 的整片涂底）。 */
+.rcard.rc-common   { border-left: 3px solid #4E8A3A; }
+.rcard.rc-uncommon { border-left: 3px solid #185FA5; }
+.rcard.rc-rare     { border-left: 3px solid #C9962B; }
+.rnm { font-weight: 700; font-size: 12px; color: var(--text); }
+.rtext { font-size: 11px; line-height: 1.5; color: var(--muted); margin-top: 2px; }
+.rcard.is-dim { opacity: .68; border-style: dashed; background: var(--panel); }
+.rcard.is-dim .rnm { color: var(--hint); }
+
+/* ---- 敌人网格 ---- */
+.codex-enemies { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
+.ecard {
+  display: flex; align-items: center; gap: 8px; padding: 6px 9px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px;
+  font-size: 12px; color: var(--text);
+}
+.ecard.is-dim { opacity: .55; border-style: dashed; }
+.ek {
+  width: 22px; height: 22px; border-radius: 6px; flex: none; font-size: 11px; color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.ek-normal { background: #8A8A7A; }
+.ek-elite { background: var(--hp); }
+.ek-boss { background: #4A3A5C; }
+.enm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecn { font-size: 10.5px; color: var(--hint); font-variant-numeric: tabular-nums; }
+
+/* ---- 战绩 ---- */
+.stat-chars { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.scard { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; }
+.scard .h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.scard .h .nm { font-weight: 700; font-size: 13.5px; color: var(--text); }
+.scard .h .dl { font-size: 11px; color: var(--hint); }
+.srow { display: flex; justify-content: space-between; font-size: 12px; padding: 2.5px 0; }
+.srow .k { color: var(--muted); }
+.srow .v { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+.srow .v small { color: var(--hint); font-weight: 400; }
+.dlbars { margin-top: 6px; }
+.dlbar { display: flex; align-items: center; gap: 7px; font-size: 10.5px; margin: 3px 0; }
+.dlbar .lb { width: 30px; color: var(--hint); flex: none; }
+.dlbar .tr { flex: 1; height: 9px; background: var(--panel); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; display: inline-block; }
+.dlbar .tr i { display: block; height: 100%; background: var(--muted); }
+.dlbar .n { width: 26px; text-align: right; color: var(--muted); flex: none; font-variant-numeric: tabular-nums; }
+.stat-line { font-size: 12.5px; padding: 2px 0; }
+.stat-line b { font-variant-numeric: tabular-nums; color: var(--text); }
+.stat-note { font-size: 10.5px; color: var(--hint); margin-top: 6px; line-height: 1.5; }
+
+/* M87/V5：无记录的 DL 轨道 —— 虚线 + 去底，和「有通关」的实轨分开 */
+.dlbar .tr.is-empty { background: transparent; border-style: dashed; opacity: .55; }
+/* M87/V5：全新档案的引导行 */
+.stat-guide {
+  font-size: 12.5px; color: var(--muted);
+  background: var(--panel-2); border: 1px dashed var(--border-strong);
+  border-radius: var(--radius); padding: 10px 14px; margin-bottom: 12px;
+}
+
+/* ---- 成就 ---- */
+.ach-sum { font-size: 12.5px; margin-bottom: 10px; }
+.ach-sum b { font-variant-numeric: tabular-nums; }
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(224px, 1fr)); gap: 8px; }
+.ach {
+  display: flex; gap: 10px; align-items: flex-start; padding: 9px 11px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+}
+.ach.is-locked { opacity: .62; }
+.amedal {
+  width: 30px; height: 30px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center; font-size: 15px;
+  color: var(--gold); background: var(--panel); border: 2px solid var(--gold);
+}
+.ach.is-locked .amedal { color: var(--border-strong); border-color: var(--border-strong); filter: grayscale(1); }
+.amain { flex: 1; min-width: 0; }
+.anm { font-weight: 700; font-size: 12.5px; color: var(--text); }
+.acdesc { font-size: 11px; color: var(--muted); line-height: 1.45; }
+.abar { height: 5px; background: var(--panel); border: 1px solid var(--border); border-radius: 3px; margin-top: 5px; overflow: hidden; }
+.abar i { display: block; height: 100%; background: var(--gold); }
+.ach.is-locked .abar i { background: var(--border-strong); }
+.apv { font-size: 10px; color: var(--hint); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 640px) {
+  .codex-tabs, .codex-body { max-width: none; }
+  .codex-cards { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+  .stat-chars { grid-template-columns: 1fr; }
+}
+
+/* ==================== R2 新手引导（M77）==================== */
+
+/* 底部提示浮条：一次一条。pointer-events 只给「知道了」按钮 ——
+   浮条悬在手牌区上方（M84 修复）：文字区不挡出牌点击，按钮本体可点 */
+#tipbar {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+  /* M87/V3：不透明白卡 → 半透轻卡。M84 只修了点击穿透，视觉上仍把
+     商店货架/Boss 描述文字整块盖住；半透明后下方内容隐约可辨，
+     收窄 + 阴影减重再降一档遮挡感。文字色不动，可读性不受影响。 */
+  max-width: min(480px, calc(100vw - 32px));
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px 10px 14px;
+  background: rgba(255, 255, 255, .86); border: 1px solid var(--border-strong);
+  border-radius: 10px; box-shadow: 0 4px 14px rgba(0, 0, 0, .22);
+  font-size: 13px; line-height: 1.55; color: var(--text);
+  z-index: 90;
+  pointer-events: none;
+}
+#tipbar[hidden] { display: none; }
+#tipbar-text { flex: 1; min-width: 0; }
+#tipbar-ok { flex: none; padding: 5px 12px; font-size: 12.5px; pointer-events: auto; }
+
+/* 卡面/文本里的术语标记：点按看释义（M83：加粗提色，让「可点」可感知） */
+.term {
+  border-bottom: 1px dotted var(--gold);
+  color: var(--text);
+  font-weight: 600;
+  cursor: help;
+}
+
+/* 释义浮层：锚着点击处，宽度收窄 */
+#term-pop {
+  position: fixed; z-index: 95;
+  max-width: min(300px, calc(100vw - 24px));
+  padding: 9px 12px;
+  background: var(--panel); border: 1px solid var(--gold);
+  border-radius: 9px; box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
+  font-size: 12.5px; line-height: 1.55; color: var(--text);
+}
+#term-pop[hidden] { display: none; }
+#term-pop .tp-term { display: block; font-weight: 700; color: var(--gold); margin-bottom: 2px; }
+
+/* ==================== 药水（M78 · §11）==================== */
+
+/* 腰带：贴舞台右下角，不与手牌/结算面板抢位 */
+.potion-belt {
+  position: absolute; right: 10px; bottom: 10px;
+  display: flex; gap: 6px; z-index: 5;
+}
+.pslot {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  background: var(--panel-2); border: 1px solid var(--border);
+}
+.pslot.is-full { cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, .25); }
+.pslot.is-full:hover { border-color: var(--gold); }
+.pslot.is-locked { cursor: default; filter: grayscale(.7) brightness(.8); }
+.pslot.is-empty { opacity: .38; cursor: default; background: var(--panel); }
+
+/* 商店货架的药水卡 */
+.npc-potion-art {
+  font-size: 30px; line-height: 1; padding: 10px 0 6px;
+}
+
+/* ==================== 攀绳（M78 · §13）==================== */
+.rope-btn {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+  z-index: 40; padding: 9px 18px; font-size: 13.5px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .3);
+}
+.rope-btn.is-armed {
+  color: #fff; background: #a33a33; border-color: #a33a33;
+}
+
+/* 火种读数仪推演（M78） */
+.np-forecast { margin: 4px 0 8px; }
+.np-fc {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 4px 8px; margin-bottom: 3px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px;
+  font-size: 12.5px;
+}
+.np-fc-t { color: var(--hint); font-size: 10.5px; flex: none; font-variant-numeric: tabular-nums; }
+.np-fc b { color: var(--text); }
+.np-fc-d { color: var(--muted); font-size: 11.5px; }
+
+/* ==================== 叙事（M79 / R4）==================== */
+
+/* 序幕 / 结局的叙事文本块（挂在 placeholder 面板上） */
+.ph-story {
+  max-width: 480px; text-align: left; align-self: center;
+  font-size: 13.5px; line-height: 1.9; color: var(--text);
+  margin: 6px 0 10px;
+}
+.ph-actions { display: flex; gap: 10px; justify-content: center; margin-top: 4px; }
+
+/* 通关结局块：压在结算数据上面，是这一屏的主角 */
+.ph-ending {
+  max-width: 480px; align-self: center; text-align: left;
+  padding: 12px 16px; margin: 6px 0 10px;
+  background: var(--panel-2); border: 1px solid var(--gold); border-radius: 10px;
+  font-size: 13px; line-height: 1.9; color: var(--text);
+}
+.ph-ending-t {
+  display: block; font-weight: 700; color: var(--gold);
+  letter-spacing: .18em; margin-bottom: 4px;
+}
+
+/* ==================== Boss 词条 + 图鉴贴士（M80 / R5）==================== */
+.codex-tip {
+  font-size: 11px; color: var(--hint); line-height: 1.6;
+  padding: 6px 10px; margin-bottom: 8px;
+  background: var(--panel-2); border: 1px dashed var(--border); border-radius: 8px;
+  text-align: left;
+}

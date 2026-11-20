@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>开始界面封面提案 · M74 设计稿</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+/* ===== 提案：暗色井道 + 顶部漏光 + 三人物封面（M74 设计稿） ===== */
+html, body { margin: 0; background: #141311; }
+body {
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  color: #E8E4D8; padding: 0 0 40px;
+}
+
+/* ---------- 封面舞台 ---------- */
+.cover {
+  position: relative; overflow: hidden;
+  min-height: 96vh;
+  background:
+    radial-gradient(58% 42% at 50% -6%, rgba(255, 226, 160, .34) 0%, rgba(255, 226, 160, .1) 34%, rgba(255, 226, 160, 0) 62%),
+    linear-gradient(180deg, #3B392F 0%, #2A2923 34%, #1D1C18 68%, #131210 100%);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 46px 20px 30px;
+  box-sizing: border-box;
+}
+/* 井壁弧线（层理暗纹） */
+.cover::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+  background: repeating-radial-gradient(58% 30% at 50% -8%,
+    transparent 0 54px, rgba(255, 235, 180, .045) 54px 55px);
+}
+/* 顶部漏下的光柱 */
+.beam {
+  position: absolute; top: -40px; left: 50%; transform: translateX(-50%);
+  width: 620px; height: 66%; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 233, 170, .2) 0%, rgba(255, 233, 170, .07) 46%, rgba(255, 233, 170, 0) 100%);
+  filter: blur(6px);
+}
+
+.title-zh {
+  font-size: 52px; font-weight: 700; letter-spacing: 22px; text-indent: 22px;
+  margin: 0; color: #F5EFDF;
+  text-shadow: 0 0 26px rgba(255, 226, 160, .35), 0 2px 0 rgba(0, 0, 0, .4);
+  position: relative;
+}
+.title-en {
+  font-size: 12px; letter-spacing: 7px; text-indent: 7px; text-align: center;
+  color: #C8A45C; margin: 10px 0 30px; position: relative;
+}
+
+/* ---------- 三人物封面 ---------- */
+.covers { display: flex; gap: 22px; position: relative; z-index: 2; }
+.cc {
+  width: 252px; border-radius: 12px; cursor: pointer; position: relative;
+  background: linear-gradient(180deg, rgba(48, 46, 38, .92), rgba(30, 29, 24, .92));
+  border: 1.5px solid rgba(200, 164, 92, .32);
+  padding: 0 0 16px; text-align: center; overflow: hidden;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .45);
+}
+.cc:hover { transform: translateY(-5px); border-color: rgba(200, 164, 92, .6); }
+.cc .portrait { height: 218px; display: grid; place-items: center; position: relative; }
+.cc .portrait img { height: 200px; filter: drop-shadow(0 10px 14px rgba(0, 0, 0, .5)); }
+.cc .pname { font-size: 19px; font-weight: 700; color: #F5EFDF; letter-spacing: 4px; }
+.cc .prole { font-size: 11.5px; color: #C8A45C; margin-top: 3px; letter-spacing: 1px; }
+.cc .pdl { font-size: 11px; color: rgba(232, 228, 216, .55); margin-top: 6px; }
+.cc .pblurb { font-size: 12px; color: rgba(232, 228, 216, .72); line-height: 1.6; padding: 8px 16px 0; }
+/* 选中态 */
+.cc.is-sel { border-color: #E8B54C; box-shadow: 0 0 0 2px rgba(232, 181, 76, .5), 0 10px 26px rgba(0, 0, 0, .5); }
+.cc.is-sel::after { content: '▼ 已选择'; position: absolute; top: 10px; right: 10px;
+  font-size: 10.5px; color: #141311; background: #E8B54C; border-radius: 5px; padding: 2px 8px; font-weight: 700; }
+/* 锁定态 */
+.cc.is-locked .portrait img { filter: grayscale(1) brightness(.55); }
+.cc .lock {
+  position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 6px;
+  background: rgba(20, 19, 17, .35); font-size: 12px; color: rgba(232, 228, 216, .85);
+}
+.cc .lock .ico { font-size: 26px; }
+
+/* ---------- 底部操作区 ---------- */
+.actions { margin-top: 30px; display: flex; flex-direction: column; align-items: center; gap: 14px; position: relative; z-index: 2; }
+.dls { display: flex; gap: 6px; }
+.dl { min-width: 46px; text-align: center; padding: 5px 0; border-radius: 6px; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: rgba(232, 228, 216, .6);
+  background: rgba(255, 255, 255, .05); border: 1px solid rgba(232, 228, 216, .14); }
+.dl.is-sel { color: #141311; background: #E8B54C; border-color: #E8B54C; }
+.dl[disabled] { opacity: .3; cursor: default; }
+.dl-desc { font-size: 11px; color: rgba(232, 228, 216, .5); }
+.cta {
+  font-size: 16px; font-weight: 700; letter-spacing: 6px; text-indent: 6px;
+  color: #141311; background: linear-gradient(180deg, #F0C464, #C8A45C);
+  border: none; border-radius: 8px; padding: 13px 58px; cursor: pointer;
+  box-shadow: 0 4px 18px rgba(232, 181, 76, .3);
+}
+.cta:hover { filter: brightness(1.06); }
+.subs { display: flex; gap: 18px; }
+.subs a { font-size: 12px; color: rgba(232, 228, 216, .6); text-decoration: none; cursor: pointer; }
+.subs a:hover { color: #E8B54C; }
+
+/* ---------- 预览控制 / 对照 ---------- */
+.ctl { display: flex; gap: 10px; margin: 0 0 14px; align-items: center; font-size: 12.5px; color: #B8B4A6;
+  max-width: 1000px; margin-left: auto; margin-right: auto; }
+.ctl label { display: flex; gap: 5px; align-items: center; cursor: pointer; }
+.wrap { max-width: 1080px; margin: 0 auto; }
+details.cmp { max-width: 1080px; margin: 26px auto 0; }
+details.cmp summary { cursor: pointer; font-size: 12.5px; color: #888780; }
+details.cmp img { width: 100%; border-radius: 10px; margin-top: 10px; border: 1px solid #3A382F; }
+.notes { max-width: 1080px; margin: 20px auto 0; background: rgba(255, 255, 255, .04);
+  border: 1px solid #3A382F; border-radius: 10px; padding: 14px 16px; font-size: 12.5px; line-height: 1.75; color: #B8B4A6; }
+.notes b { color: #E8E4D8; }
+@media (max-width: 900px) {
+  .covers { flex-direction: column; align-items: center; }
+  .title-zh { font-size: 40px; letter-spacing: 14px; text-indent: 14px; }
+}
+</style>
+</head>
+<body>
+
+<div class="ctl">
+  <label><input type="checkbox" id="tg-unlock"> 全解锁预览（看三张封面全亮的效果）</label>
+  <label><input type="checkbox" id="tg-select2" checked> 选中态演示（掘者默认选中）</label>
+  <span style="opacity:.6">设计稿 · 数据与立绘均为真实资源</span>
+</div>
+
+<div class="wrap">
+  <div class="cover">
+    <div class="beam"></div>
+    <h1 class="title-zh">竖井</h1>
+    <div class="title-en">TOWER DESCEND · 下潜原型</div>
+
+    <div class="covers" id="covers"></div>
+
+    <div class="actions">
+      <div class="dls" id="dls"></div>
+      <div class="dl-desc" id="dl-desc"></div>
+      <button class="cta" id="go">开始下潜</button>
+      <div class="subs">
+        <a id="l-continue">继续游戏</a><a id="l-daily">每日挑战</a><a id="l-settings">设置</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<details class="cmp">
+  <summary>对照：当前开始界面（实拍）</summary>
+  <img src="tests/m74-menu-main.png" alt="当前主页">
+  <img src="tests/m74-menu-select.png" alt="当前选人页">
+</details>
+
+<div class="notes">
+  <b>设计说明</b> —— 主页与选人页合并为一张封面：暗色井道（越往下越黑，呼应下潜）+ 顶部漏光光柱 +
+  三人物封面横排。每张封面 = 大立绘 + 名字 / 出身 + 刻痕档 + 一句话定位；未解锁的灰化加锁（解锁条件写在封面上）。
+  点封面选中（金环 + 「已选择」角标），DL 排 + 开始下潜收在底部，继续 / 每日 / 设置降级为小字链接。
+  <b>落地范围</b>：index.html 的 menu-main 改造成封面（选人页退役并入）；app.js 的 fillCharSelect /
+  menuPage 改挂封面交互；Progress 解锁判定照旧。确认后进正式代码。
+</div>
+
+<script src="js/core/rng.js"></script>
+<script src="js/core/progress.js"></script>
+<script src="js/data/characters.js"></script>
+<script>
+(function () {
+  'use strict';
+  Progress.reset();
+  var sel = { id: 'digger', dl: 1 };
+
+  function render() {
+    var allOpen = document.getElementById('tg-unlock').checked;
+    var showSel = document.getElementById('tg-select2').checked;
+    // 选中失效回退（切预览模式 / 进度变化后，选中角色可能变锁定）
+    if (!(allOpen || Progress.isUnlocked(sel.id))) {
+      sel.id = CHAR_ORDER.find(function (id) { return Progress.isUnlocked(id); }) || 'digger';
+    }
+    var html = CHAR_ORDER.map(function (id) {
+      var ch = CHARACTERS[id];
+      var ok = allOpen || Progress.isUnlocked(id);
+      var isSel = showSel && ok && sel.id === id;
+      var maxDl = Math.min(10, Math.max(1, allOpen ? 10 : Progress.dl(id)));
+      return '<div class="cc' + (ok ? '' : ' is-locked') + (isSel ? ' is-sel' : '') + '" data-cc="' + id + '">' +
+        '<div class="portrait"><img src="preview-assets-v3/' + id + '-cut.png" alt="' + ch.name + '">' +
+        (ok ? '' : '<div class="lock"><span class="ico">🔒</span><span>' + ch.unlock + '</span></div>') + '</div>' +
+        '<div class="pname">' + ch.name + '</div>' +
+        '<div class="prole">' + ch.role + '</div>' +
+        '<div class="pdl">刻痕 DL' + Math.min(10, Math.max(1, Progress.dl(id))) + '</div>' +
+        '<div class="pblurb">' + ch.blurb + '</div>' +
+        '</div>';
+    }).join('');
+    document.getElementById('covers').innerHTML = html;
+
+    var max = Math.min(10, Math.max(1, allOpen ? 10 : Progress.dl(sel.id)));
+    if (sel.dl > max) sel.dl = max;
+    var dls = '';
+    for (var n = 1; n <= 10; n++) {
+      dls += '<div class="dl' + (n === sel.dl ? ' is-sel' : '') + '"' +
+        (n <= max ? ' data-dl="' + n + '"' : ' disabled') + '>DL' + n + '</div>';
+    }
+    document.getElementById('dls').innerHTML = dls;
+    document.getElementById('dl-desc').textContent =
+      '难度系数 ×' + (1 + 0.15 * (sel.dl - 1)).toFixed(2) + '（敌人血量与伤害都乘它；打通当前档才涨刻痕）';
+
+    [].slice.call(document.querySelectorAll('.cc')).forEach(function (el) {
+      el.addEventListener('click', function () {
+        var ok = allOpen || Progress.isUnlocked(el.dataset.cc);
+        if (!ok) return;
+        sel.id = el.dataset.cc;
+        render();
+      });
+    });
+    [].slice.call(document.querySelectorAll('.dl[data-dl]')).forEach(function (el) {
+      el.addEventListener('click', function () { sel.dl = +el.dataset.dl; render(); });
+    });
+  }
+
+  document.getElementById('tg-unlock').addEventListener('change', render);
+  document.getElementById('tg-select2').addEventListener('change', render);
+  document.getElementById('go').addEventListener('click', function () {
+    this.textContent = '设计稿 · 确认后接线';
+    var self = this;
+    setTimeout(function () { self.textContent = '开始下潜'; }, 1200);
+  });
+  render();
+})();
+</script>
+</body>
+</html>

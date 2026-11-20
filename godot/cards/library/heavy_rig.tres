@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://cards/card_data.gd" id="1_script"]
+[ext_resource type="Script" path="res://cards/effect_spec.gd" id="2_step"]
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step0"]
+script = ExtResource("2_step")
+kind = 7
+target = 2
+value = 1
+status_kind = 7
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step1"]
+script = ExtResource("2_step")
+kind = 2
+target = 2
+value = 0
+upgraded_value = 5
+
+[resource]
+script = ExtResource("1_script")
+id = "heavy_rig"
+title = "重装机甲"
+description = ""
+cost = 3
+card_type = 2
+rarity = 3
+discipline = 0
+unlock_depth = 8
+effects = Array[ExtResource("2_step")]([SubResource("Step0"), SubResource("Step1")])

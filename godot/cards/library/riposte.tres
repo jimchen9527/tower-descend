@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://cards/card_data.gd" id="1_script"]
+[ext_resource type="Script" path="res://cards/effect_spec.gd" id="2_step"]
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step0"]
+script = ExtResource("2_step")
+kind = 2
+target = 2
+value = 8
+upgraded_value = 11
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step1"]
+script = ExtResource("2_step")
+kind = 7
+target = 2
+value = 4
+upgraded_value = 6
+status_kind = 5
+
+[resource]
+script = ExtResource("1_script")
+id = "riposte"
+title = "反击姿态"
+description = "获得 8 点格挡和 4 点荆棘。"
+cost = 1
+card_type = 1
+rarity = 3
+discipline = 0
+unlock_depth = 7
+effects = Array[ExtResource("2_step")]([SubResource("Step0"), SubResource("Step1")])

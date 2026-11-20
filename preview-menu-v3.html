@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>开始界面封面提案 v3 · 半身攻击姿态（M74b）</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+html, body { margin: 0; background: #141311; }
+body { font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; color: #E8E4D8; padding: 0 0 30px; }
+
+/* ---------- 封面舞台：地下末世遗址 ---------- */
+.cover {
+  position: relative; overflow: hidden; min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+  box-sizing: border-box;
+  background: url('preview-assets-bg/battle-band2.jpg') center 62% / cover no-repeat #1A1916;
+}
+/* 压暗上下，保文字可读 */
+.cover::before { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(10, 10, 9, .78) 0%, rgba(10, 10, 9, .25) 26%,
+    rgba(10, 10, 9, .05) 52%, rgba(10, 10, 9, .68) 100%); }
+
+.title-zh { font-size: 46px; font-weight: 700; letter-spacing: 18px; text-indent: 18px;
+  margin: 34px 0 6px; color: #F5EFDF; position: relative;
+  text-shadow: 0 0 24px rgba(255, 226, 160, .3), 0 2px 0 rgba(0, 0, 0, .5); }
+.title-en { font-size: 11.5px; letter-spacing: 6px; text-indent: 6px; color: #C8A45C;
+  margin-bottom: 0; position: relative; }
+
+/* ---------- 三人物半身（攻击姿态） ---------- */
+.heroes { display: flex; justify-content: center; align-items: flex-end; gap: 40px;
+  margin-top: auto; width: 100%; position: relative; z-index: 2; }
+.hero { position: relative; width: 250px; height: 300px; }
+.hero img {
+  position: absolute; left: 50%; bottom: 0; height: 430px; max-width: none;
+  transform: translateX(-50%);   /* 半身：下半截被底部操作区盖住 */
+  filter: drop-shadow(0 12px 16px rgba(0, 0, 0, .55));
+  transition: filter .2s ease, opacity .2s ease;
+}
+/* 攻击姿态：各自的动态倾斜（真实攻击姿态立绘可后续替换，见页脚说明） */
+.hero.h-digger img { transform: translateX(-50%) rotate(-4deg); }
+.hero.h-medic  img { transform: translateX(-50%) rotate(3deg) translateY(6px); }
+.hero.h-keeper img { transform: translateX(-50%) rotate(-2deg) translateY(4px); }
+/* 角色色轮辋光：像各自蓄力 */
+.hero::before { content: ''; position: absolute; inset: auto -20px -30px; height: 200px;
+  border-radius: 50%; pointer-events: none; }
+.hero.h-digger::before { background: radial-gradient(closest-side, rgba(228, 168, 40, .3), transparent); }
+.hero.h-medic::before  { background: radial-gradient(closest-side, rgba(110, 190, 160, .26), transparent); }
+.hero.h-keeper::before { background: radial-gradient(closest-side, rgba(230, 110, 60, .3), transparent); }
+/* 未选中：压暗让位；选中：提亮 */
+.hero.dim img { filter: brightness(.5) saturate(.6); }
+.hero.dim::before { opacity: .25; }
+/* 锁定：灰化 */
+.hero.locked img { filter: grayscale(1) brightness(.45); }
+.hero.locked::before { opacity: .1; }
+
+/* ---------- 头像选择排（M74b：缩小，只要头部图标） ---------- */
+.pickbar { display: flex; gap: 26px; margin-top: 14px; position: relative; z-index: 3; }
+.pick { cursor: pointer; text-align: center; width: 84px; position: relative; }
+.pick .head {
+  width: 62px; height: 62px; border-radius: 50%; margin: 0 auto;
+  border: 2px solid rgba(232, 228, 216, .3);
+  background-size: 300%; background-position: 50% 10%;
+  background-color: #2A2923;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, .5);
+  transition: border-color .15s, box-shadow .15s;
+}
+.pick .pname { font-size: 11.5px; color: rgba(232, 228, 216, .6); margin-top: 5px; }
+.pick.is-sel .head { border-color: #E8B54C; box-shadow: 0 0 0 3px rgba(232, 181, 76, .4), 0 3px 8px rgba(0, 0, 0, .5); }
+.pick.is-sel .pname { color: #E8B54C; font-weight: 700; }
+.pick.locked .head { filter: grayscale(1) brightness(.55); }
+.pick.locked .pname { opacity: .5; }
+.pick.locked::after { content: '🔒'; position: absolute; top: -4px; right: 8px; font-size: 13px; }
+
+/* ---------- 底部操作区 ---------- */
+.actions { display: flex; flex-direction: column; align-items: center; gap: 12px;
+  margin-top: 14px; position: relative; z-index: 3; }
+.dls { display: flex; gap: 6px; }
+.dl { min-width: 46px; text-align: center; padding: 5px 0; border-radius: 6px; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: rgba(232, 228, 216, .6);
+  background: rgba(255, 255, 255, .06); border: 1px solid rgba(232, 228, 216, .16); }
+.dl.is-sel { color: #141311; background: #E8B54C; border-color: #E8B54C; }
+.dl[disabled] { opacity: .3; cursor: default; }
+.dl-desc { font-size: 11px; color: rgba(232, 228, 216, .55); }
+.cta { font-size: 16px; font-weight: 700; letter-spacing: 6px; text-indent: 6px;
+  color: #141311; background: linear-gradient(180deg, #F0C464, #C8A45C);
+  border: none; border-radius: 8px; padding: 13px 58px; cursor: pointer;
+  box-shadow: 0 4px 18px rgba(232, 181, 76, .3); }
+.cta:hover { filter: brightness(1.06); }
+.subs { display: flex; gap: 18px; }
+.subs a { font-size: 12px; color: rgba(232, 228, 216, .6); text-decoration: none; cursor: pointer; }
+.subs a:hover { color: #E8B54C; }
+
+/* ---------- 控制与对照 ---------- */
+.ctl { display: flex; gap: 10px; margin: 0 0 12px; align-items: center; font-size: 12.5px;
+  color: #B8B4A6; max-width: 1000px; margin-left: auto; margin-right: auto; }
+.ctl label { display: flex; gap: 5px; align-items: center; cursor: pointer; }
+.wrap { max-width: 1160px; margin: 0 auto; }
+.notes { max-width: 1080px; margin: 22px auto 0; background: rgba(255, 255, 255, .04);
+  border: 1px solid #3A382F; border-radius: 10px; padding: 14px 16px;
+  font-size: 12.5px; line-height: 1.75; color: #B8B4A6; }
+.notes b { color: #E8E4D8; }
+details.cmp { max-width: 1080px; margin: 20px auto 0; }
+details.cmp summary { cursor: pointer; font-size: 12.5px; color: #888780; }
+details.cmp img { width: 100%; border-radius: 10px; margin-top: 10px; border: 1px solid #3A382F; }
+@media (max-width: 900px) {
+  .heroes { gap: 10px; }
+  .hero { width: 150px; height: 200px; }
+  .hero img { height: 290px; }
+  .title-zh { font-size: 36px; letter-spacing: 12px; text-indent: 12px; }
+}
+</style>
+</head>
+<body>
+
+<div class="ctl">
+  <label><input type="checkbox" id="tg-unlock"> 全解锁预览（三人都上，无锁）</label>
+  <span style="opacity:.6">M74b 设计稿 · 背景 = 正式战斗背景 band2（地下遗址），数据与立绘均为真实资源</span>
+</div>
+
+<div class="wrap">
+  <div class="cover">
+    <h1 class="title-zh">竖井</h1>
+    <div class="title-en">TOWER DESCEND · 下潜原型</div>
+
+    <div class="heroes" id="heroes"></div>
+
+    <div class="pickbar" id="pickbar"></div>
+
+    <div class="actions">
+      <div class="dls" id="dls"></div>
+      <div class="dl-desc" id="dl-desc"></div>
+      <button class="cta" id="go">开始下潜</button>
+      <div class="subs">
+        <a>继续游戏</a><a>每日挑战</a><a>设置</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="notes">
+  <b>v3 相对 v2 的改动（按你的反馈）</b>—— ① 封面缩小：三角色以<b>半身</b>站进场景（下半截被操作区盖住），
+  不再是三张大卡；② 选择缩成<b>头像圆钮</b>（只要头部图标，62px，选中金环）；③ 背景重新设计：
+  用正式战斗背景 band2 的<b>地下末世遗址</b>（断桥 / 拱门 / 吊灯 / 石板广场），上下压暗保文字。
+  <br><b>关于「攻击姿态」</b>：当前三张立绘是待机姿势，设计稿里用动态倾斜 + 蓄力轮辋光近似「攻击感」。
+  要真正的攻击姿态立绘有两条路：A. 保持现立绘裁半身（零成本，姿态是待机的）；
+  B. AI 生成三张攻击姿态稿（姿态到位，但风格可能与现有像素/插画 sprite 有出入，需要几轮挑图）。
+  看完这个稿子告诉我走哪条。
+  <br><b>落地范围</b>：index.html 的 menu-main 改成此封面结构（选人页退役并入）；
+  app.js 菜单交互改挂头像选择（选中失效回退照 v2 逻辑）；Progress 判定照旧。
+</div>
+
+<details class="cmp">
+  <summary>对照：v2 提案（三张全身封面大卡）与当前版式</summary>
+  <img src="tests/m74-cover.png" alt="v2 提案">
+  <img src="tests/m74-menu-main.png" alt="当前主页">
+</details>
+
+<script src="js/core/rng.js"></script>
+<script src="js/core/progress.js"></script>
+<script src="js/data/characters.js"></script>
+<script>
+(function () {
+  'use strict';
+  Progress.reset();
+  var sel = { id: 'digger', dl: 1 };
+
+  function render() {
+    var allOpen = document.getElementById('tg-unlock').checked;
+    if (!(allOpen || Progress.isUnlocked(sel.id))) {
+      sel.id = CHAR_ORDER.find(function (id) { return Progress.isUnlocked(id); }) || 'digger';
+    }
+
+    // 半身像：未选中压暗让位、锁定灰化
+    var heroes = CHAR_ORDER.map(function (id) {
+      var ok = allOpen || Progress.isUnlocked(id);
+      var cls = 'hero h-' + id + (ok ? '' : ' locked') + (sel.id === id ? '' : ' dim');
+      return '<div class="' + cls + '"><img src="preview-assets-v3/' + id + '-cut.png" alt="' + CHARACTERS[id].name + '"></div>';
+    }).join('');
+    document.getElementById('heroes').innerHTML = heroes;
+
+    // 头像选择排
+    var picks = CHAR_ORDER.map(function (id) {
+      var ch = CHARACTERS[id];
+      var ok = allOpen || Progress.isUnlocked(id);
+      return '<div class="pick' + (sel.id === id ? ' is-sel' : '') + (ok ? '' : ' locked') +
+        '" data-pick="' + id + '" title="' + ch.name + '">' +
+        '<div class="head" style="background-image:url(preview-assets-v3/' + id + '-cut.png)"></div>' +
+        '<div class="pname">' + ch.name + '</div></div>';
+    }).join('');
+    document.getElementById('pickbar').innerHTML = picks;
+
+    [].slice.call(document.querySelectorAll('.pick')).forEach(function (el) {
+      el.addEventListener('click', function () {
+        var ok = allOpen || Progress.isUnlocked(el.dataset.pick);
+        if (!ok) return;
+        sel.id = el.dataset.pick;
+        render();
+      });
+    });
+
+    var max = Math.min(10, Math.max(1, allOpen ? 10 : Progress.dl(sel.id)));
+    if (sel.dl > max) sel.dl = max;
+    var dls = '';
+    for (var n = 1; n <= 10; n++) {
+      dls += '<div class="dl' + (n === sel.dl ? ' is-sel' : '') + '"' +
+        (n <= max ? ' data-dl="' + n + '"' : ' disabled') + '>DL' + n + '</div>';
+    }
+    document.getElementById('dls').innerHTML = dls;
+    document.getElementById('dl-desc').textContent =
+      '难度系数 ×' + (1 + 0.15 * (sel.dl - 1)).toFixed(2) + '（敌人血量与伤害都乘它；打通当前档才涨刻痕）';
+    [].slice.call(document.querySelectorAll('.dl[data-dl]')).forEach(function (el) {
+      el.addEventListener('click', function () { sel.dl = +el.dataset.dl; render(); });
+    });
+  }
+
+  document.getElementById('tg-unlock').addEventListener('change', render);
+  render();
+})();
+</script>
+</body>
+</html>

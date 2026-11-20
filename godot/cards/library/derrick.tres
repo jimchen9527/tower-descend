@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://cards/card_data.gd" id="1_script"]
+[ext_resource type="Script" path="res://cards/effect_spec.gd" id="2_step"]
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step0"]
+script = ExtResource("2_step")
+kind = 7
+target = 2
+value = 3
+upgraded_value = 5
+status_kind = 6
+
+[resource]
+script = ExtResource("1_script")
+id = "derrick"
+title = "井架支撑"
+description = "能力：每回合开始时，获得 3 点格挡。"
+cost = 2
+card_type = 2
+rarity = 2
+discipline = 0
+unlock_depth = 5
+effects = Array[ExtResource("2_step")]([SubResource("Step0")])

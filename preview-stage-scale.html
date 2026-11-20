@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>战斗舞台 · 形象缩小 + 对峙拉距（设计稿待确认）</title>
+<style>
+:root {
+  --bg: #F1EFE8;
+  --panel: #FFFFFF;
+  --ink: #2C2C2A;
+  --hint: #888780;
+  --line: #D3D1C7;
+  --char: #5F5E5A;
+  --digger: #5F5E5A;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 20px 0 40px;
+}
+
+.wrap { width: 860px; margin: 0 auto; }
+
+h1 { font-size: 17px; font-weight: 600; margin: 0 0 4px; }
+.lede { font-size: 12.5px; color: var(--hint); margin: 0 0 16px; }
+
+/* ---------- 方案卡 ---------- */
+.opt {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+.opt-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #FAFAF7;
+}
+.opt-head b { font-size: 13.5px; }
+.opt-head .tag {
+  font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+  background: #5B5B55; color: #fff;
+}
+.opt-head .tag.cur { background: #9A9A92; }
+.opt-head .tag.rec { background: #2E7B50; }
+.opt-head .desc { font-size: 12px; color: var(--hint); margin-left: auto; }
+
+/* ---------- 舞台（内宽 786px ≈ 1440 实机的 790px，比例如实） ---------- */
+.stage {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 18px 16px 30px;
+  /* 与实机一致（css/style.css 的 .battle-stage）：舞台高度有300px 下限，
+     立绘缩小不会把舞台压塌 —— 舞台一矮，背景图（background-position: center bottom）
+     的地平线就在画面里往上飘，看着像人物浮空。设计稿漏了这条时，
+     四档的舞台高度是 218 / 206 / 196 / 186，地线跟着变，是假象。 */
+  min-height: 300px;
+  background: linear-gradient(180deg, #FBFAF6 0%, #F3F1E9 62%, #E7E4D8 100%);
+  overflow: hidden;
+  box-shadow: inset 60px 0 80px -60px rgba(95, 94, 90, .18),
+              inset -60px 0 80px -60px rgba(95, 94, 90, .18);
+}
+.stage .bgimg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; opacity: .5; pointer-events: none;
+}
+/* 地平线标尺：把「地面在哪」画出来，脚底是否贴地一眼可判 */
+.stage .groundline {
+  position: absolute; left: 0; right: 0; bottom: 30px; z-index: 1;
+  border-top: 1.5px dashed rgba(207, 54, 44, .5);
+  pointer-events: none;
+}
+.stage .groundline::after {
+  content: '地面基准线（脚底应与此齐平）';
+  position: absolute; right: 8px; top: 3px;
+  font-size: 10px; color: rgba(207, 54, 44, .8);
+  background: rgba(255,255,255,.7); padding: 0 5px; border-radius: 3px;
+}
+.side {
+  position: relative; z-index: 1;
+  display: flex; align-items: flex-end;
+}
+/* DOM 里敌人在前，靠 order 把它翻到右侧 —— 与 index.html / style.css 同源 */
+.side.player { order: 0; }
+.side.enemy { order: 1; justify-content: flex-end; }
+
+.unit { display: flex; flex-direction: column; align-items: center; }
+.art { position: relative; display: grid; place-items: center; }
+.art img {
+  display: block; width: auto;
+  filter: drop-shadow(0 8px 6px rgba(50, 48, 42, .28));
+  user-select: none;
+}
+
+/* 待机（悬浮）：只有敌人 def.hover（拾荒者残影）允许上下浮动
+   —— C 档把 6px 收到 4.4px：立绘矮了 26%，摆幅不收就从「呼吸」变成「飘」 */
+@keyframes idle-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(var(--bob, -6px)); }
+}
+.stage[data-fix] .art img {
+  filter: drop-shadow(0 var(--sh-y, 8px) var(--sh-blur, 6px) rgba(50, 48, 42, .28));
+}
+/* 意图胶囊（头顶） */
+.intent {
+  display: inline-flex; align-items: center;
+  font-size: 11px; font-weight: 600; color: #A32D2D;
+  background: rgba(255,255,255,.95);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 2px 10px; margin-bottom: 6px; white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(60,58,52,.12);
+}
+.elite .intent { color: #7A5417; }
+.boss .intent { color: #6E1A1A; }
+
+/* 血条（脚下） */
+.hprow {
+  position: relative; align-self: stretch;
+  margin-top: 2px;
+}
+.hpbar {
+  position: relative; height: 15px;
+  background: #5D1A16; border: 1px solid #44100D; border-radius: 4px;
+  overflow: hidden; box-shadow: 0 2px 5px rgba(48,26,20,.3);
+}
+.hpbar .fill { height: 100%; background: linear-gradient(180deg, #D45048, #A32D2D); }
+.hplabel {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 10.5px; font-weight: 700; color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.55);
+  font-variant-numeric: tabular-nums;
+  /* 必须显式压 line-height：body 是 1.6，9px 字算出来行高 14.4px，
+     而血条只有 10px —— 文字盒比条高 2px，数字就顶出框了。
+     place-items:center 只居中盒子，管不了盒子本身比容器大。
+     行高压到 1 后文字盒 = 字号，正好贴住条高。 */
+  line-height: 1;
+}
+.hprow-boss .hpbar {
+  height: 20px; border-radius: 5px;
+  background: #4A1410; border-color: #3A0F0C;
+  box-shadow: 0 2px 6px rgba(48,26,20,.38), inset 0 -3px 4px rgba(0,0,0,.3);
+}
+.hprow-boss .hpbar .fill { background: linear-gradient(180deg, #B93A30, #7C1A14); }
+.hprow-boss .hplabel { font-size: 11.5px; }
+
+/* Boss 铭牌 */
+.boss-plate {
+  margin-top: 4px; font-size: 11px; color: #6E1A1A;
+  background: rgba(255,255,255,.9);
+  border: 1px solid #D9C0BE; border-radius: 6px; padding: 1px 8px;
+}
+.boss-plate i { font-style: normal; color: var(--hint); }
+
+/* 舞台左上 HUD */
+.stage-hud {
+  position: absolute; top: 14px; left: 18px; z-index: 2;
+  display: flex; align-items: center; gap: 10px;
+  padding: 4px 12px 4px 5px;
+  background: rgba(255,255,255,.84);
+  border: 1px solid var(--line); border-radius: 999px;
+  font-size: 11.5px; color: var(--hint);
+  box-shadow: 0 2px 8px rgba(40,38,34,.14);
+}
+.energybar {
+  position: relative; display: inline-block;
+  min-width: 92px; height: 15px; border-radius: 4px;
+  background: #5D1A16; border: 1px solid #44100D; overflow: hidden;
+}
+.energybar .fill { height: 100%; background: linear-gradient(180deg, #D45048, #A32D2D); }
+.energybar .stat-energy {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 10px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.55);
+}
+
+/* ---------- 数值表 ---------- */
+table.spec { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.spec th, table.spec td {
+  border: 1px solid var(--line); padding: 5px 8px; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+table.spec th { background: #F5F3EC; font-weight: 600; }
+table.spec td.lbl { text-align: left; font-weight: 600; background: #FAFAF7; }
+table.spec caption {
+  caption-side: top; text-align: left; font-size: 12px; color: var(--hint);
+  padding: 6px 0;
+}
+.note {
+  font-size: 12px; color: var(--hint);
+  background: #FAFAF7; border: 1px dashed var(--line); border-radius: 8px;
+  padding: 8px 12px; margin: 10px 0 18px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>战斗舞台 · 形象整体缩小 + 敌我间距拉大（设计稿）</h1>
+<p class="lede">
+  舞台内宽固定 786px（≈ 1440 实机实测的 790px），四张卡同一场景同一素材，只改尺寸与间距 —— 可直接横向对比。
+  尚未改动 <code>css/</code>，等你选定档位再落地。
+</p>
+
+<div class="note">
+  <b>为什么必须连血条一起缩：</b>单位宽度 = max(立绘宽, 血条 min-width)。立绘缩了但血条下限不动，
+  单位一点也不会变窄，对峙间距就拉不开 —— 视觉上「白缩」。所以每档的血条下限同步收窄，
+  且<b>收得比立绘宽度上限更窄一点</b>，保证血条不反过来成为最宽的一块。
+</div>
+
+<!-- ===================== 现状 ===================== -->
+<section class="opt" id="opt-cur">
+  <div class="opt-head">
+    <b>现状</b><span class="tag cur">基准</span>
+    <span class="desc">立绘 ×1.00 · 对峙 gap 84px · 血条下限 128</span>
+  </div>
+  <div class="stage" data-gap="84" data-pgap="18" data-fix="1" data-pw="150" data-pmax="136"
+       data-bw="99"  data-bmax="132" data-ew="123" data-emax="172" data-ehp="118"
+       data-bossw="176" data-bossmax="224" data-hp="118" data-bosshp="210" data-php="118">
+    <img class="bgimg" src="preview-assets-bg/battle-band1.jpg" alt="">
+    <div class="groundline"></div>
+    <div class="stage-hud">
+      <span class="energybar"><i class="fill" style="width:60%"></i><span class="stat-energy">能量 3 / 5</span></span>
+      <span>D6 · 精英战</span>
+      <span>点敌人切换目标</span>
+    </div>
+    <div class="side enemy" style="gap:18px">
+      <div class="unit elite" data-kind="elite">
+        <span class="intent">攻击 11</span>
+        <div class="art"><img src="preview-assets-v3/rust_crown-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:100%"></div></div><span class="hplabel">42 / 42</span></div>
+      </div>
+      <div class="unit" data-kind="normal">
+        <span class="intent">攻击 5</span>
+        <div class="art"><img src="preview-assets-v3/spore_walker-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:78%"></div></div><span class="hplabel">20 / 26</span></div>
+      </div>
+    </div>
+    <div class="side player">
+      <div class="unit" data-kind="player">
+        <div class="art"><img src="preview-assets-v3/digger-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:64%"></div></div><span class="hplabel">48 / 75</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 方案 A ===================== -->
+<section class="opt" id="opt-a">
+  <div class="opt-head">
+    <b>方案 A · 轻微</b><span class="tag">缩 10%</span>
+    <span class="desc">对峙 gap 110px · 改动最小，几乎不改变现有观感</span>
+  </div>
+  <div class="stage" data-gap="110" data-pgap="22" data-fix=".9" data-pw="135" data-pmax="122"
+       data-bw="89"  data-bmax="119" data-ew="111" data-emax="155" data-ehp="108"
+       data-bossw="158" data-bossmax="202" data-hp="106" data-bosshp="190" data-php="108">
+    <img class="bgimg" src="preview-assets-bg/battle-band1.jpg" alt="">
+    <div class="groundline"></div>
+    <div class="stage-hud">
+      <span class="energybar"><i class="fill" style="width:60%"></i><span class="stat-energy">能量 3 / 5</span></span>
+      <span>D6 · 精英战</span>
+      <span>点敌人切换目标</span>
+    </div>
+    <div class="side enemy" style="gap:22px">
+      <div class="unit elite" data-kind="elite">
+        <span class="intent">攻击 11</span>
+        <div class="art"><img src="preview-assets-v3/rust_crown-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:100%"></div></div><span class="hplabel">42 / 42</span></div>
+      </div>
+      <div class="unit" data-kind="normal">
+        <span class="intent">攻击 5</span>
+        <div class="art"><img src="preview-assets-v3/spore_walker-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:78%"></div></div><span class="hplabel">20 / 26</span></div>
+      </div>
+    </div>
+    <div class="side player">
+      <div class="unit" data-kind="player">
+        <div class="art"><img src="preview-assets-v3/digger-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:64%"></div></div><span class="hplabel">48 / 75</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 方案 B ===================== -->
+<section class="opt" id="opt-b">
+  <div class="opt-head">
+    <b>方案 B · 推荐</b><span class="tag rec">缩 18%</span>
+    <span class="desc">对峙 gap 140px · 中场留白明显，构图最稳，两侧仍各留 200px 余量</span>
+  </div>
+  <div class="stage" data-gap="140" data-pgap="26" data-fix=".82" data-pw="123" data-pmax="112"
+       data-bw="81"  data-bmax="108" data-ew="101" data-emax="141" data-ehp="98"
+       data-bossw="144" data-bossmax="184" data-hp="98" data-bosshp="172" data-php="100">
+    <img class="bgimg" src="preview-assets-bg/battle-band1.jpg" alt="">
+    <div class="groundline"></div>
+    <div class="stage-hud">
+      <span class="energybar"><i class="fill" style="width:60%"></i><span class="stat-energy">能量 3 / 5</span></span>
+      <span>D6 · 精英战</span>
+      <span>点敌人切换目标</span>
+    </div>
+    <div class="side enemy" style="gap:26px">
+      <div class="unit elite" data-kind="elite">
+        <span class="intent">攻击 11</span>
+        <div class="art"><img src="preview-assets-v3/rust_crown-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:100%"></div></div><span class="hplabel">42 / 42</span></div>
+      </div>
+      <div class="unit" data-kind="normal">
+        <span class="intent">攻击 5</span>
+        <div class="art"><img src="preview-assets-v3/spore_walker-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:78%"></div></div><span class="hplabel">20 / 26</span></div>
+      </div>
+    </div>
+    <div class="side player">
+      <div class="unit" data-kind="player">
+        <div class="art"><img src="preview-assets-v3/digger-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:64%"></div></div><span class="hplabel">48 / 75</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 方案 C ===================== -->
+<section class="opt" id="opt-c">
+  <div class="opt-head">
+    <b>方案 C · 大幅（接地修正版）</b><span class="tag rec">缩 26%</span>
+    <span class="desc">对峙 gap 170px · 落影/ 地面影 / 待机浮动幅度全部按 0.74 同步收窄</span>
+  </div>
+  <div class="stage" data-gap="170" data-pgap="30" data-fix=".74" data-shadow="8" data-pw="111" data-pmax="101"
+       data-bw="73"  data-bmax="98"  data-ew="91"  data-emax="127" data-ehp="88"
+       data-bossw="130" data-bossmax="166" data-hp="88" data-bosshp="152" data-php="90">
+    <img class="bgimg" src="preview-assets-bg/battle-band1.jpg" alt="">
+    <div class="groundline"></div>
+    <div class="stage-hud">
+      <span class="energybar"><i class="fill" style="width:60%"></i><span class="stat-energy">能量 3 / 5</span></span>
+      <span>D6 · 精英战</span>
+      <span>点敌人切换目标</span>
+    </div>
+    <div class="side enemy" style="gap:30px">
+      <div class="unit elite" data-kind="elite">
+        <span class="intent">攻击 11</span>
+        <div class="art"><img src="preview-assets-v3/rust_crown-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:100%"></div></div><span class="hplabel">42 / 42</span></div>
+      </div>
+      <div class="unit" data-kind="normal">
+        <span class="intent">攻击 5</span>
+        <div class="art"><img src="preview-assets-v3/spore_walker-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:78%"></div></div><span class="hplabel">20 / 26</span></div>
+      </div>
+    </div>
+    <div class="side player">
+      <div class="unit" data-kind="player">
+        <div class="art"><img src="preview-assets-v3/digger-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:64%"></div></div><span class="hplabel">48 / 75</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 最终合成 ===================== -->
+<section class="opt" id="opt-final">
+  <div class="opt-head">
+    <b>最终方案 · C 的缩放 + gap 再 ×1.3 + 数字不溢出</b><span class="tag rec">待确认</span>
+    <span class="desc">对峙 gap 221（C 的 170 再 ×1.3）· 立绘缩 26% · HP 条 15→14 + 数字 9px 不溢出</span>
+  </div>
+  <div class="stage" data-gap="221" data-pgap="30" data-fix=".74" data-shadow="8"
+       data-hph="14" data-bosshph="18" data-hpfs="9"
+       data-pw="111" data-pmax="101"
+       data-bw="73"  data-bmax="98"  data-ew="91"  data-emax="127" data-ehp="88"
+       data-bossw="130" data-bossmax="166" data-hp="88" data-bosshp="152" data-php="90">
+    <img class="bgimg" src="preview-assets-bg/battle-band1.jpg" alt="">
+    <div class="groundline"></div>
+    <div class="stage-hud">
+      <span class="energybar"><i class="fill" style="width:60%"></i><span class="stat-energy">能量 3 / 5</span></span>
+      <span>D6 · 精英战</span>
+      <span>点敌人切换目标</span>
+    </div>
+    <div class="side enemy" style="gap:30px">
+      <div class="unit elite" data-kind="elite">
+        <span class="intent">攻击 11</span>
+        <div class="art"><img src="preview-assets-v3/rust_crown-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:100%"></div></div><span class="hplabel">42 / 42</span></div>
+      </div>
+      <div class="unit" data-kind="normal">
+        <span class="intent">攻击 5</span>
+        <div class="art"><img src="preview-assets-v3/spore_walker-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:78%"></div></div><span class="hplabel">20 / 26</span></div>
+      </div>
+    </div>
+    <div class="side player">
+      <div class="unit" data-kind="player">
+        <div class="art"><img src="preview-assets-v3/digger-cut.png" alt=""></div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:64%"></div></div><span class="hplabel">48 / 75</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 数值对照 ===================== -->
+<section class="opt">
+  <div class="opt-head"><b>数值对照表</b><span class="desc">单位：px</span></div>
+  <div style="padding:12px 14px 16px">
+    <table class="spec">
+      <caption>立绘高度 / 宽度上限 —— 全部乘以同一系数，两侧比例不变</caption>
+      <tr>
+        <th>项</th><th>现状</th><th>A 缩10%</th><th>B 缩18%</th><th>C 缩26%</th>
+      </tr>
+      <tr><td class="lbl">玩家立绘</td><td>150 / 136</td><td>135 / 122</td><td>123 / 112</td><td>111 / 101</td></tr>
+      <tr><td class="lbl">小怪</td><td>99 / 132</td><td>89 / 119</td><td>81 / 108</td><td>73 / 98</td></tr>
+      <tr><td class="lbl">精英</td><td>123 / 172</td><td>111 / 155</td><td>101 / 141</td><td>91 / 127</td></tr>
+      <tr><td class="lbl">Boss</td><td>176 / 224</td><td>158 / 202</td><td>144 / 184</td><td>130 / 166</td></tr>
+      <tr><td class="lbl">血条下限（普通 / 精英 / 玩家 / Boss）</td><td>128 / 128 / 128 / 224</td><td>106 / 108 / 108 / 190</td><td>98 / 98 / 100 / 172</td><td>88 / 88 / 90 / 152</td></tr>
+    </table>
+
+    <table class="spec" style="margin-top:14px">
+      <caption>间距 —— 对峙 gap 随视口宽度收缩（clamp），满编（3/4 敌）再降一档</caption>
+      <tr>
+        <th>项</th><th>现状</th><th>A</th><th>B</th><th>C</th>
+      </tr>
+      <tr><td class="lbl">敌我对峙 gap</td><td>clamp(34, 5.5vw, 84)</td><td>clamp(44, 7vw, 110)</td><td>clamp(56, 9vw, 140)</td><td>clamp(68, 11vw, 170)</td></tr>
+      <tr><td class="lbl">满编 3 敌 gap</td><td>60</td><td>72</td><td>84</td><td>96</td></tr>
+      <tr><td class="lbl">满编 4 敌 gap</td><td>52</td><td>60</td><td>68</td><td>76</td></tr>
+      <tr><td class="lbl">同方内部 gap</td><td>18（满编 12/10）</td><td>22（14/12）</td><td>26（16/14）</td><td>30（18/16）</td></tr>
+    </table>
+
+    <table class="spec" style="margin-top:14px">
+      <caption><b>最终方案落地清单</b> —— C 的间距 + A 的地线高度 + 细 HP 条</caption>
+      <tr><th>文件</th><th>选择器 / 属性</th><th>现值</th><th>改为</th></tr>
+      <tr>
+        <td class="lbl" rowspan="4">css/art.css<br>立绘基准</td>
+        <td style="text-align:left">.unit-art .unit-bm（height / max-width）</td><td>99 / 132</td><td><b>73 / 98</b></td>
+      </tr>
+      <tr><td style="text-align:left">.art-kind-elite .unit-bm</td><td>123 / 172</td><td><b>91 / 127</b></td></tr>
+      <tr><td style="text-align:left">.art-kind-boss .unit-bm</td><td>176 / 224</td><td><b>130 / 166</b></td></tr>
+      <tr><td style="text-align:left">.unit-art-player .unit-bm</td><td>150 / 136</td><td><b>111 / 101</b></td></tr>
+
+      <tr>
+        <td class="lbl" rowspan="4">css/art.css<br>接地修正</td>
+        <td style="text-align:left">.unit-art .unit-bm 的 drop-shadow</td><td>0 8px 6px</td><td><b>0 5.9px 4.4px</b></td></tr>
+      <tr><td style="text-align:left">.oshadow（bottom / height）</td><td>-7px / 9px</td><td><b>-5.2px / 6.7px</b></td></tr>
+      <tr><td style="text-align:left">@keyframes idle-bob 的 translateY</td><td>-6px</td><td><b>-4.4px</b></td></tr>
+      <tr><td style="text-align:left">@keyframes hit-flash 的 drop-shadow</td><td>0 0 8px</td><td><b>0 0 6px</b></td></tr>
+
+      <tr>
+        <td class="lbl" rowspan="4">css/style.css<br>血条下限</td>
+        <td style="text-align:left">.hprow（min-width）</td><td>128</td><td><b>88</b></td></tr>
+      <tr><td style="text-align:left">.hprow-boss（min-width）</td><td>224</td><td><b>152</b></td></tr>
+      <tr><td style="text-align:left">#enemy-panel[data-alive="4"] .hprow</td><td>104</td><td><b>76</b></td></tr>
+      <tr><td style="text-align:left">#enemy-panel[data-alive="4"] .hprow-boss</td><td>104</td><td><b>76</b></td></tr>
+
+      <tr>
+        <td class="lbl" rowspan="4">css/style.css<br>HP 条厚度</td>
+        <td style="text-align:left">.hpbar（height）</td><td>15px</td><td><b>14px</b></td></tr>
+      <tr><td style="text-align:left">.hprow-boss .hpbar（height）</td><td>20px</td><td><b>18px</b></td></tr>
+      <tr><td style="text-align:left">.hplabel（font-size / line-height）</td><td>10.5px / 1.6（继承）</td><td><b>9px / 1</b></td></tr>
+      <tr><td style="text-align:left">.hplabel 的 text-shadow</td><td>0 1px 2px</td><td><b>0 1px 1px</b></td></tr>
+
+      <tr>
+        <td class="lbl" rowspan="3">css/style.css<br>对峙间距</td>
+        <td style="text-align:left">.battle-stage（gap）</td><td>clamp(34px, 5.5vw, 84px)</td><td><b>clamp(88px, 14.3vw, 221px)</b></td></tr>
+      <tr><td style="text-align:left">.battle-stage[data-crowd="3"]（gap）</td><td>60px</td><td><b>125px</b></td></tr>
+      <tr><td style="text-align:left">.battle-stage[data-crowd="4"]（gap）</td><td>52px</td><td><b>99px</b></td></tr>
+
+      <tr>
+        <td class="lbl">css/art.css<br>同方内部</td>
+        <td style="text-align:left">#player-panel, #enemy-panel（gap）<br>data-alive="3" / "4" 的回退</td>
+        <td>18px<br>12px / 10px</td><td><b>30px<br>18px / 16px</b></td>
+      </tr>
+    </table>
+
+    <div class="note" style="margin-top:14px">
+      <b>「地线按方案 A」这条已被min-height 吸收。</b>
+      设计稿原先漏了 <code>min-height</code>，立绘一缩小舞台就跟着塌（218→186px），
+      背景图是 <code>background-position: center bottom</code> 贴底对齐的，
+      舞台一矮地平线就在画面里往上飘 —— 那是设计稿的假象，<b>实机 css/style.css:929 本来就有 min-height: 300px</b>。
+      补上后五档舞台统一 300px、地线统一距底 31px，<b>与方案 A 完全一致</b>，落地时无需额外改动。
+      实测五档：舞台高全300 / 地线距底全 31 / 脚底到地线全 −16（= 血条高度）。
+    </div>
+
+    <b>HP 数字为什么必然溢出：</b>
+      <code>.hplabel</code> 没写 line-height，继承 body 的 1.6。但真正卡住的是<b>字形本身的自然高</b>：
+      9px 字在 Segoe UI 下的ascent+descent 就有 <b>12px</b>，line-height 只管行盒、管不了字形。
+      实测扫描（条高 10–16 × 字号 8–11，共 35 组，带 <code>box-sizing: border-box</code> 与 1px 边框）：
+      <table class="spec" style="margin:8px 0">
+        <tr><th>条高</th><th>内容区（扣边框）</th><th>9px 文字高</th><th>溢出</th><th>判定</th></tr>
+        <tr><td>10px</td><td>8px</td><td>12px</td><td>+4</td><td style="color:#A32D2D">溢出</td></tr>
+        <tr><td>12px</td><td>10px</td><td>12px</td><td>+2</td><td style="color:#A32D2D">溢出</td></tr>
+        <tr><td><b>14px</b></td><td>12px</td><td>12px</td><td><b>0</b></td><td style="color:#2E7B50"><b>刚好</b></td></tr>
+        <tr><td>15px</td><td>13px</td><td>12px</td><td>−1</td><td>宽裕 1px</td></tr>
+      </table>
+      <b>结论：9px 字号的理论最小条高是 14px</b>（1px 边框 + 12px 字形+ 1px 余量）。
+      条高 15→14 看起来只细了 1px，但<b>数字从 10.5px 缩到 9px</b>、边框 1px 未变、
+      圆角 4px 未变 —— 视觉上「细」主要来自数字变小，不是条变矮。
+      <br>若要条高真的到 12px 以下，只能把字号压到 <b>8px</b>（字形 11px，仍需条高 13px），
+      8px 字在移动端小屏上已接近可读下限，不建议。
+    </div>
+
+    <div class="note" style="margin-top:10px">
+      <b>满编 4 敌复核（菌母 + 3 孢囊行者，全局唯一 4 敌场景）：</b>
+      立绘 98×0.72=71 vs 血条下限 76 → 单位宽 76，4 单位 + 3×16px 内部间距 = 352；
+      玩家 101；总占 352 + 99(gap) + 101 = <b>552 / 786，两侧各余 117px</b>。
+      比现状（667 + 52 + 136 = 855，两侧仅余 −34，已在边缘）宽松得多。
+      <br>单敌场景：玩家 101 + gap 221 + 敌人 88 = 410 / 786，两侧各余 188px —— 中场留白充足，不贴边。
+      <br>窄屏两档（≤900 的 .8、≤640 的 .67）走 <code>--bm-scale</code> 倍率，只改基准值即联动。
+    </div>
+
+    <table class="spec" style="margin-top:14px">
+      <caption><b>接地修正（C 档专用）</b>—— 脚底线本身不动（见下方说明），要收窄的是它周围这几个写死的 px</caption>
+      <tr><th>项</th><th>CSS 原值</th><th>C 档改为</th><th>为什么</th></tr>
+      <tr>
+        <td class="lbl">立绘落影</td>
+        <td>drop-shadow(0 <b>8px</b> <b>6px</b>)</td>
+        <td>0 <b>5.9px</b> <b>4.4px</b></td>
+        <td style="text-align:left">立绘矮 26% 后 8px 阴影相对变粗 34%，脚底像垫了块垫子</td>
+      </tr>
+      <tr>
+        <td class="lbl">悬浮单位地面影</td>
+        <td>bottom <b>-7px</b> / height <b>9px</b></td>
+        <td>bottom <b>-5.2px</b> / height <b>6.7px</b></td>
+        <td style="text-align:left">影子比脚掌宽出一圈，看着悬空</td>
+      </tr>
+      <tr>
+        <td class="lbl">待机浮动幅度</td>
+        <td>translateY(<b>-6px</b>)</td>
+        <td>translateY(<b>-4.4px</b>)</td>
+        <td style="text-align:left">摆幅占身高从 3% 涨到 8%，从「呼吸」变「飘」</td>
+      </tr>
+      <tr>
+        <td class="lbl">受击闪红光晕</td>
+        <td>drop-shadow(0 0 <b>8px</b>)</td>
+        <td>drop-shadow(0 0 <b>6px</b>)</td>
+        <td style="text-align:left">光晕溢出立绘轮廓边缘</td>
+      </tr>
+    </table>
+
+    <div class="note" style="margin-top:14px">
+      <b>脚底线为什么不用改：</b>`.battle-stage` 是 <code>align-items: flex-end</code>，立绘在血条上方、
+      血条高度固定 —— 缩立绘只降头顶，脚底天然钉在地面基准线上。
+      实测四档的「立绘底到地面基准」距离<b>全是 0px</b>，四档完全一致。
+      每张卡上都画了红色虚线标尺，可以直接核对脚底是否齐平。
+      <br>要改的是它周围的固定像素：落影偏移、地面影尺寸、待机摆幅、闪红光晕 —— 这些不跟着缩，
+      立绘矮下去之后相对变大，就产生了「浮空」的错觉。
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+// 把 data-* 上的档位数值写到实际样式上 —— 四张卡共用一套 CSS，只换参数，
+// 免得每张卡各写一份 style 造成「看着像改了其实某张没跟上」。
+document.querySelectorAll('.stage').forEach(function (st) {
+  var d = st.dataset;
+  st.style.gap = d.gap + 'px';
+  st.querySelector('.side.enemy').style.gap = d.pgap + 'px';
+
+  st.querySelectorAll('.unit').forEach(function (u) {
+    var k = u.dataset.kind;
+    var h, mw, hpw;
+    if (k === 'player')      { h = d.pw;    mw = d.pmax; hpw = d.php; }
+    else if (k === 'boss')   { h = d.bossw; mw = d.bossmax; hpw = d.bosshp; }
+    else if (k === 'elite')  { h = d.ew;    mw = d.emax; hpw = d.ehp; }
+    else                     { h = d.bw;    mw = d.bmax; hpw = d.hp; }
+    var img = u.querySelector('.art img');
+    img.style.height = h + 'px';
+    img.style.maxWidth = mw + 'px';
+
+    var hp = u.querySelector('.hprow');
+    hp.style.minWidth = hpw + 'px';
+    if (k === 'boss') hp.classList.add('hprow-boss');
+  });
+});
+
+/* ---- 接地修正：把「跟随立绘一起缩」的固定像素按档位收窄 ----
+   立绘的脚底线本身不动（.battle-stage 的 align-items: flex-end 已经钉住），
+   会骗人的是它周围那几个写死的 px —— 影子、地面影、待机摆幅。它们不跟着缩，
+   立绘矮下去之后相对变大，人看着就离地了。 */
+document.querySelectorAll('.stage').forEach(function (st) {
+  var fix = parseFloat(st.dataset.fix || '1');   // 立绘缩放系数
+  var sh   = st.dataset.shadow;                   // 立绘落影的基准参数（可选）
+  var d = st.dataset;
+
+  // 1) 落影：drop-shadow(0 8px 6px)→ 全部乘 fix
+  if (sh) {
+    st.style.setProperty('--sh-y', (parseFloat(sh) * fix).toFixed(2) + 'px');
+    st.style.setProperty('--sh-blur', (6 * fix).toFixed(2) + 'px');
+  }
+
+  // 2) 悬浮单位的地面椭圆影 + 待机摆幅
+  var bob = 6 * fix;
+  st.style.setProperty('--bob', '-' + bob.toFixed(2) + 'px');
+
+  // 3) 地面影：宽高/ 下沉量都按 fix 收，才不会比脚掌宽出一圈
+  st.querySelectorAll('.oshadow').forEach(function (o) {
+    o.style.bottom  = (-7 * fix).toFixed(2) + 'px';
+    o.style.height  = (9 * fix).toFixed(2) + 'px';
+  });
+
+  // 4) HP 条厚度与字号（只最终档设了 data-hph，其余档走默认 15 / 10.5）
+  if (d.hph) {
+    st.querySelectorAll('.hprow').forEach(function (hp) {
+      var bar = hp.querySelector('.hpbar');
+      bar.style.height = (hp.classList.contains('hprow-boss') ? d.bosshph : d.hph) + 'px';
+      var lb = hp.querySelector('.hplabel');
+      lb.style.fontSize = d.hpfs + 'px';
+      lb.style.lineHeight = '1';
+    });
+  }
+});
+</script>
+</body>
+</html>

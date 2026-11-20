@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>力量增强特效 · 设计稿（M57）</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/art.css">
+<style>
+/* ============================================================
+   力量增强特效 · 交互设计稿（M57）
+   ------------------------------------------------------------
+   需求：敌人力量增强 / 玩家力量增强，都亮一下红色气场，
+   并按增强的力度显示「+N」。
+   本页为纯演示（假数据），复用正式 css + 真实立绘 —— 版式即实机。
+   ⚠️ 与「不再画红框」的关系：那条令针对**选敌交互**；
+   这里是力量增益的战斗反馈，红=变强语义，属用户点名要的红色。
+   ============================================================ */
+html, body { margin: 0; background: #F7F6F1; }
+body {
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  color: #2C2C2A;
+  max-width: 1180px; margin: 0 auto; padding: 18px 20px 40px;
+}
+
+/* ---------- 页头 ---------- */
+.hd { display: flex; align-items: flex-start; gap: 18px; margin-bottom: 14px; }
+.hd h1 { font-size: 19px; margin: 0 0 4px; }
+.hd .sub { margin: 0; font-size: 12.5px; color: #888780; line-height: 1.55; max-width: 780px; }
+
+/* ---------- 舞台 ---------- */
+.stage-wrap { position: relative; }
+.battle-stage { border-radius: 12px; border: 1px solid #E4E2DA; overflow: hidden; }
+
+/* ---------- 力量气场（M57 设计本体） ---------- */
+
+/* ① 红色气场「亮一下」：立绘红辉光脉冲，0.75s 一次 */
+.unit.is-strbuff .unit-art { animation: str-glow .75s ease-out; }
+@keyframes str-glow {
+  0%   { filter: drop-shadow(0 0 0 rgba(206, 54, 44, 0)); }
+  22%  { filter: drop-shadow(0 0 14px rgba(206, 54, 44, .85)); }
+  100% { filter: drop-shadow(0 0 0 rgba(206, 54, 44, 0)); }
+}
+
+/* ② 扩散光环：以脚底为轴向外扩散一圈红环，随力度变大
+   （--str-n 由 JS 按增量设置：+1 / +2 / +3 …） */
+.unit.is-strbuff .unit-art::after {
+  content: '';
+  position: absolute; left: 50%; bottom: 24px;
+  width: calc(56px + var(--str-n, 1) * 26px);
+  height: calc(18px + var(--str-n, 1) * 9px);
+  border-radius: 50%;
+  border: 3px solid rgba(206, 54, 44, .8);
+  box-shadow: 0 0 12px rgba(206, 54, 44, .5), inset 0 0 10px rgba(206, 54, 44, .3);
+  pointer-events: none;
+  animation: str-ring .75s ease-out both;
+}
+@keyframes str-ring {
+  0%   { opacity: 0; transform: translateX(-50%) scale(.55); }
+  28%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) scale(1.3); }
+}
+
+/* ③ 力度飘字「力量 +N」：字号随力度涨（+1 → 22px，+3 → 30px） */
+.str-float {
+  position: absolute; z-index: 60; left: 50%; top: 6%;
+  transform: translateX(-50%);
+  text-align: center; pointer-events: none;
+  line-height: 1.1;
+  animation: strFloat 1.05s ease-out both;
+}
+.str-float i {
+  display: block; font-style: normal;
+  font-size: 10px; letter-spacing: 3px;
+  color: #9C2620; text-shadow: 0 1px 0 #FFF;
+}
+.str-float b {
+  display: block;
+  font-size: calc(18px + var(--str-n, 1) * 4px);
+  font-weight: 800; color: #A32D2D;
+  text-shadow: 0 1px 0 #FFF, 0 2px 8px rgba(44, 44, 42, .22);
+}
+@keyframes strFloat {
+  0%   { opacity: 0; transform: translate(-50%, 12px) scale(.7); }
+  18%  { opacity: 1; transform: translate(-50%, 0) scale(1.18); }
+  100% { opacity: 0; transform: translate(-50%, -42px) scale(1); }
+}
+
+/* ④ 力量计数小牌：叠上去的 buff 常显（正式版走 M20 状态图标位） */
+.str-chip {
+  display: inline-block;
+  margin-top: 5px;
+  font-size: 10.5px; font-weight: 700;
+  color: #FFF; background: #A32D2D;
+  border-radius: 4px; padding: 1px 7px;
+}
+
+/* ---------- 演示控制 ---------- */
+.ctl {
+  margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  font-size: 12.5px; color: #888780;
+}
+.ctl .grp {
+  display: flex; gap: 6px; align-items: center;
+  background: #FFF; border: 1px solid #E4E2DA; border-radius: 8px; padding: 6px 10px;
+}
+.ctl .grp b { font-size: 12px; color: #2C2C2A; margin-right: 2px; }
+.ctl button {
+  cursor: pointer; font-size: 12px; font-weight: 600;
+  color: #FFF; background: #A32D2D;
+  border: none; border-radius: 6px; padding: 6px 12px;
+}
+.ctl button.ghost { background: #5F5E5A; }
+.ctl button:disabled { opacity: .4; cursor: default; }
+.ctl .sep { width: 1px; height: 22px; background: #E4E2DA; margin: 0 4px; }
+
+/* ---------- 说明 ---------- */
+.notes { margin-top: 22px; display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+.notes .box {
+  background: #FFF; border: 1px solid #E4E2DA; border-radius: 10px;
+  padding: 12px 14px; font-size: 12.5px; line-height: 1.7;
+}
+.notes h2 { font-size: 13px; margin: 0 0 6px; }
+.notes table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.notes td { border-top: 1px solid #EFEEE8; padding: 4px 6px 4px 0; vertical-align: top; }
+.notes td:first-child { color: #888780; white-space: nowrap; padding-right: 12px; }
+@media (max-width: 800px) { .notes { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <div>
+    <h1>力量增强特效 · 设计稿（M57）</h1>
+    <p class="sub">
+      敌人 / 玩家力量增强时，立绘<b>红色气场亮一下</b>（红辉光脉冲 + 脚底向外扩散一圈红环），
+      并按增强的力度飘出「力量 +N」—— 力度越大，光环越大、飘字越大。
+      下方按钮随便点，连点会连续触发；红色小牌是叠加后的力量计数（正式版走状态图标位）。
+    </p>
+  </div>
+</header>
+
+<section class="stage-wrap">
+  <div class="battle-stage" id="stage">
+    <div id="battle-bg" class="battle-bg bg-band1" hidden></div>
+
+    <section id="enemy-panel" class="panel enemy">
+      <div class="unit eunit" data-eidx="0" data-rank="front">
+        <div class="intent intent-atk"><span class="intent-text">意图 · 攻击 6</span></div>
+        <div class="unit-art art-kind-elite">
+          <img class="unit-bm" src="preview-assets-v3/warlord-cut.png" alt="" draggable="false">
+        </div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:100%"></div></div><span class="hplabel">45 / 45</span></div>
+        <div style="text-align:center"><span class="str-chip" data-chip="e" hidden>力量 0</span></div>
+        <div class="stats-more"><span class="unit-name">铁颚督军</span></div>
+      </div>
+    </section>
+
+    <section id="player-panel" class="panel player">
+      <div class="unit">
+        <div class="unit-art unit-art-player">
+          <img class="unit-bm" src="preview-assets-v3/digger-cut.png" alt="" draggable="false">
+        </div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:100%"></div></div><span class="hplabel">75 / 75</span></div>
+        <div style="text-align:center"><span class="str-chip" data-chip="p" hidden>力量 0</span></div>
+        <div class="stats-more"><span class="unit-name">掘者</span></div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<section class="ctl">
+  <span>点一下试效果（可连点）：</span>
+  <div class="grp"><b>敌人（铁颚督军）</b>
+    <button data-side="e" data-n="1">力量 +1</button>
+    <button data-side="e" data-n="2">力量 +2</button>
+    <button data-side="e" data-n="3">力量 +3</button>
+  </div>
+  <div class="sep"></div>
+  <div class="grp"><b>玩家（掘者）</b>
+    <button class="ghost" data-side="p" data-n="1">力量 +1</button>
+    <button class="ghost" data-side="p" data-n="2">力量 +2</button>
+    <button class="ghost" data-side="p" data-n="3">力量 +3</button>
+  </div>
+  <div class="sep"></div>
+  <button class="ghost" id="demo">▶ 连续演示</button>
+  <button id="reset" style="background:#B4B2A9">重置计数</button>
+</section>
+
+<section class="notes">
+  <div class="box">
+    <h2>特效构成（一次触发 = 三层同播，0.75s 内结束）</h2>
+    <table>
+      <tr><td>① 红辉光脉冲</td><td>立绘 drop-shadow 红光亮一下再收回（「亮一下」的主体）</td></tr>
+      <tr><td>② 扩散红环</td><td>以脚底为轴向外扩散一圈红环，随后淡出 —— 力度越大环越大</td></tr>
+      <tr><td>③ 力度飘字</td><td>「力量 +N」从头顶升起淡出；字号随 N 涨（+1→22px，+3→30px）</td></tr>
+      <tr><td>④ 计数小牌</td><td>叠加后的力量值常显（正式版走 M20 状态图标位，红底白字）</td></tr>
+    </table>
+  </div>
+  <div class="box">
+    <h2>落地清单（确认后改正式代码）</h2>
+    <table>
+      <tr><td>触发挂钩</td><td>render.js 的 feedback()：照抄血量快照的做法，给 _lastHp 旁加一份 buffs.str 快照，每帧 diff —— 增量 &gt; 0 就触发，N = 增量（事件 / 卡牌 / 敌人招式怎么加的力量都自动覆盖）</td></tr>
+      <tr><td>css/art.css</td><td>str-glow / str-ring 关键帧 + 飘字样式（飘字挂 #view-combat 同款定位）</td></tr>
+      <tr><td>unit-art 伪元素</td><td>::after 目前空闲（已查），光环用 ::after 不新增元素</td></tr>
+      <tr><td>reduce 用户</td><td>气场动画进 no-preference 媒体块；「+N」飘字是信息，放查询外（reduce 时静显不飘）</td></tr>
+      <tr><td>测试</td><td>探针断言：玩家/敌人 +N 后快照 diff 触发、飘字文案含「+N」、无红框回归（选敌仍是金/中性）</td></tr>
+    </table>
+  </div>
+</section>
+
+<script>
+(function () {
+  'use strict';
+  var strState = { p: 0, e: 0 };
+
+  function unitEl(side) {
+    return document.querySelector(side === 'p' ? '#player-panel .unit' : '#enemy-panel .eunit');
+  }
+
+  function strBuff(side, n) {
+    var unit = unitEl(side);
+    var art = unit.querySelector('.unit-art');
+
+    // 气场：摘类 → 强制回流 → 重挂，保证连点每次都从头播
+    unit.classList.remove('is-strbuff');
+    void unit.offsetWidth;
+    art.style.setProperty('--str-n', n);
+    unit.classList.add('is-strbuff');
+    setTimeout(function () { unit.classList.remove('is-strbuff'); }, 850);
+
+    // 飘字
+    var f = document.createElement('div');
+    f.className = 'str-float';
+    f.style.setProperty('--str-n', n);
+    f.innerHTML = '<i>力量</i><b>+' + n + '</b>';
+    unit.appendChild(f);
+    setTimeout(function () { f.remove(); }, 1100);
+
+    // 计数小牌
+    strState[side] += n;
+    var chip = unit.querySelector('.str-chip');
+    chip.textContent = '力量 ' + strState[side];
+    chip.hidden = false;
+  }
+
+  [].slice.call(document.querySelectorAll('.ctl button[data-side]')).forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      strBuff(btn.dataset.side, +btn.dataset.n);
+    });
+  });
+
+  document.getElementById('demo').addEventListener('click', function () {
+    var seq = [['e', 1, 0], ['p', 2, 550], ['e', 3, 1100], ['p', 1, 1650], ['e', 2, 2200]];
+    seq.forEach(function (s) {
+      setTimeout(function () { strBuff(s[0], s[1]); }, s[2]);
+    });
+  });
+
+  document.getElementById('reset').addEventListener('click', function () {
+    strState = { p: 0, e: 0 };
+    [].slice.call(document.querySelectorAll('.str-chip')).forEach(function (c) {
+      c.hidden = true; c.textContent = '力量 0';
+    });
+  });
+
+  document.getElementById('battle-bg').hidden = false;
+})();
+</script>
+</body>
+</html>

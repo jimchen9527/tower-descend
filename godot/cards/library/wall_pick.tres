@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://cards/card_data.gd" id="1_script"]
+[ext_resource type="Script" path="res://cards/effect_spec.gd" id="2_step"]
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step0"]
+script = ExtResource("2_step")
+kind = 0
+target = 0
+value = 4
+upgraded_value = 7
+scale_source = 1
+scale_coef = 1
+
+[resource]
+script = ExtResource("1_script")
+id = "wall_pick"
+title = "井壁凿击"
+description = "造成 4 + 深度×1 点伤害。"
+cost = 1
+card_type = 0
+rarity = 1
+discipline = 0
+unlock_depth = 2
+effects = Array[ExtResource("2_step")]([SubResource("Step0")])

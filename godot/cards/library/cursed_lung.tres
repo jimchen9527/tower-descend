@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://cards/card_data.gd" id="1_script"]
+[ext_resource type="Script" path="res://cards/effect_spec.gd" id="2_step"]
+
+[resource]
+script = ExtResource("1_script")
+id = "cursed_lung"
+title = "疫尘入肺"
+description = ""
+cost = 0
+card_type = 3
+rarity = 4
+discipline = 0
+unlock_depth = 0
+curse_hp_loss = 2

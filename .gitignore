@@ -1,0 +1,49 @@
+# 依赖
+node_modules/
+
+# 本地工具数据 / 应用描述文件
+.workbuddy/
+.wbapp_*.genie
+
+# 临时输出目录
+work_dir/
+
+# 测试截图与录像（脚本保留，产物不入库）
+tests/*.png
+tests/*.jpg
+tests/*.jpeg
+tests/*.gif
+tests/*.webp
+tests/**/*.png
+tests/**/*.jpg
+tests/**/*.jpeg
+tests/**/*.gif
+tests/**/*.webp
+
+# 根目录截图与调试文件
+/*.png
+!/apple-touch-icon.png
+/_dbg*.html
+/_probedmg.js
+/_dbg*.png
+
+# Godot 编辑器缓存（.import 保留，缓存不入库）
+godot/.godot/
+
+# AI 生成的设计中间素材（成品已在 preview-assets-*）
+design-attack-frames/
+design-relic-v2/
+
+# 通用
+*.log
+*.tmp
+*.zip
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.env
+*.key
+config.local.json
+.github-push.json
+~$*

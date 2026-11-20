@@ -1,0 +1,64 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://actors/player.gd" id="1_player"]
+[ext_resource type="Script" path="res://components/health_component.gd" id="2_health"]
+[ext_resource type="Script" path="res://components/block_component.gd" id="3_block"]
+[ext_resource type="Script" path="res://components/energy_component.gd" id="4_energy"]
+[ext_resource type="Script" path="res://components/status_component.gd" id="8_status"]
+[ext_resource type="Texture2D" path="res://assets/sprites/player.png" id="5_body"]
+[ext_resource type="Texture2D" path="res://assets/sprites/swing.png" id="6_swing"]
+[ext_resource type="PackedScene" path="res://ui/health_bar.tscn" id="7_bar"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_body"]
+radius = 20.0
+height = 60.0
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_swing"]
+radius = 26.0
+height = 60.0
+
+[node name="Player" type="CharacterBody2D"]
+collision_layer = 2
+collision_mask = 1
+script = ExtResource("1_player")
+health_bar_scene = ExtResource("7_bar")
+
+[node name="Body" type="Sprite2D" parent="."]
+texture = ExtResource("5_body")
+scale = Vector2(1.7, 1.7)
+
+[node name="SwingSprite" type="Sprite2D" parent="Body"]
+visible = false
+modulate = Color(1, 1, 1, 0)
+position = Vector2(0, -13)
+scale = Vector2(1.15, 1.15)
+texture = ExtResource("6_swing")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CapsuleShape2D_body")
+
+[node name="AttackArea" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 4
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackArea"]
+shape = SubResource("CapsuleShape2D_swing")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("2_health")
+max_health = 100
+current = 100
+
+[node name="BlockComponent" type="Node" parent="."]
+script = ExtResource("3_block")
+max_block = 30
+current = 0
+
+[node name="EnergyComponent" type="Node" parent="."]
+script = ExtResource("4_energy")
+max_energy = 3
+current = 3
+
+[node name="StatusComponent" type="Node" parent="."]
+script = ExtResource("8_status")

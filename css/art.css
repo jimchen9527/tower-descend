@@ -1,0 +1,1557 @@
+/* 图形层 —— 与 style.css 的分工：style.css 管布局，这里管图形与动效。
+   单开一个文件，是为了让「图形化」成为一层可整体回退的东西：
+   出问题时把这个 <link> 摘掉，界面就退回纯布局态，不会连带崩掉排版。 */
+
+.art { display: block; }
+
+/* 实心剪影：敌人与角色走「版画墨块」路线 —— 轮廓即形体，靠外形而不是内部细节认人。
+   写在这里而不是图形的属性上，是因为「实心 / 线描」是个可整体切换的风格开关
+   （地图节点就仍走线描：22px 下线条比色块清楚）。
+   安全性来自一条维护约定：图形里所有「线元素」（腿、尾巴、脖子、骨刺）都带显式
+   fill="none"，显式值优先于这里的继承值，所以不会被一起填成墨块。 */
+.art-enemy,
+.art-char { fill: currentColor; }
+
+/* 挖空细节（眼睛、菌褶、兜帽内影、无头者的颈部断面）。
+   必须用 CSS 而不能写成 fill="var(--panel)" ——
+   SVG 的 presentation attribute 不接受 var()，只有 CSS 属性才认。
+   放在实心规则之后：同特异性时后定义者胜，挖空才不会被墨块盖掉。 */
+.art-hole { fill: var(--panel, #fff); }
+.art-hole-line { stroke: var(--panel, #fff); }
+
+/* ============================================================
+   地图
+   ============================================================ */
+
+/* 节点里的图标。24px 是按「缩到地图上还认得出」反推出来的下限 ——
+   图形库这一版就是照着这个尺寸画的（爪痕、火焰这类细节再小就糊成一团）。
+   M87/V7：24 → 27（+12.5%），放大只会更清楚，不碰节点尺寸与定位。 */
+.mnode .art-node { width: 27px; height: 27px; }
+
+/* 大 Boss：图标放大一圈 + 边框加粗。
+   不动 .mnode 自身的 width/height —— 节点定位是按圆心算的
+   （render-map.js 里 cx/cy 与 left/top 的换算），改尺寸会让它偏心；
+   改图标尺寸则完全不碰布局。 */
+.mnode.mt-boss { border-width: 2px; }
+.mnode.mt-boss .art-node { width: 31px; height: 31px; }
+
+/* 节点分档（M70）：大 Boss 红环放大、中 Boss 黄铜环 —— 层次感的第一层。
+   尺寸变化用负 margin 抵消（left/top 仍按 38px 圆心算，中心不动）。 */
+.mnode.mt-boss {
+  width: 44px; height: 44px; margin: -3px 0 0 -3px;
+  border-color: #A33A3A;
+  box-shadow: 0 0 0 3px rgba(163, 58, 58, .18), 0 2px 6px rgba(60, 58, 52, .25);
+}
+.mnode.mt-elite {
+  width: 42px; height: 42px; margin: -2px 0 0 -2px;
+  border-color: #8A6A1F;
+  box-shadow: 0 0 0 2.5px rgba(138, 106, 31, .16), 0 1px 4px rgba(60, 58, 52, .2);
+}
+.mnode.mt-elite .art-node { width: 29px; height: 29px; }
+
+/* 井道纵深（M70）：背景越深越暗 + 两侧渐暗 + 径向渐晕 ——
+   三层渐变叠在同一个元素上，不加 DOM。旧版等距层理横线已退役：
+   波浪层理改由 render-map.js 逐层生成 SVG path（振幅随深度渐增），
+   周期仍由这里的 ROW_H / PAD_Y 决定，别在 CSS 再写死。 */
+.mapwrap {
+  background-image:
+    radial-gradient(120% 90% at 50% 42%, rgba(0, 0, 0, 0) 55%, rgba(60, 58, 52, .13) 100%),
+    linear-gradient(90deg, rgba(74, 72, 66, .15) 0%, rgba(74, 72, 66, 0) 14%,
+      rgba(74, 72, 66, 0) 86%, rgba(74, 72, 66, .15) 100%),
+    linear-gradient(180deg, #F8F5EC 0%, #EFEAE0 40%, #E0DACA 72%, #CFC9B8 100%);
+}
+
+/* 大 Boss 的难度角标（1 / 2 / 3）—— 王冠图标替代了原来的数字，难度不能跟着丢 */
+.art-boss-badge { position: relative; display: grid; place-items: center; }
+.art-boss-tier {
+  position: absolute;
+  right: -9px;
+  bottom: -7px;
+  font: 500 10px/1.5 inherit;
+  padding: 0 3px;
+  border-radius: 6px;
+  background: #A33A3A;
+  color: #fff;
+}
+
+/* 已走的路径（M70）：双层描边 —— 6px 淡晕垫底 + 2.4px 墨色主线，
+   走过哪条线，一眼能扫出来。曲线本体由 render-map.js 生成。 */
+.edge.edge-walk-glow { stroke: rgba(140, 74, 66, .18); stroke-width: 6; }
+.edge.edge-walked { stroke: #8C4A42; stroke-width: 2.4; }
+
+/* M87/V1 当前可走连线：掘者金 + 流动虚线 —— 从「你在这」出发的方向引导。
+   与已走的墨色线、未走的浅灰线三态分明；fx-off 时动画停，实线仍在。 */
+.edge.edge-open {
+  stroke: var(--gold);
+  stroke-width: 2.2;
+  stroke-dasharray: 5 4;
+  animation: edge-flow 1.2s linear infinite;
+}
+@keyframes edge-flow { to { stroke-dashoffset: -9; } }
+
+/* M87/V1 可走节点：静态光环 → 脉冲光圈（比 is-cur 的呼吸轻，主次不抢）。 */
+@keyframes node-open-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(95, 94, 90, .26); }
+  50%      { box-shadow: 0 0 0 7px rgba(95, 94, 90, .14); }
+}
+.mnode.is-open { animation: node-open-pulse 2.6s ease-in-out infinite; }
+
+/* 当前节点呼吸。
+   只有「你在这」会动：一个动的元素是提示，满屏动的元素是噪音。
+   M58b：不再包 no-preference 媒体查询 —— 跟随系统 reduce 的实测后果是
+   玩家机器向浏览器报 reduce 时全套动效消失（2026-10-15 用户反馈），
+   改由文件尾的 html.fx-off 总开关统一管。 */
+@keyframes node-breathe {
+  0%, 100% { transform: scale(1.16); }
+  50%      { transform: scale(1.24); }
+}
+.mnode.is-cur { animation: node-breathe 2.2s ease-in-out infinite; }
+
+/* ============================================================
+   战斗
+   ============================================================ */
+
+/* 单位改成「上立绘 + 下名牌」的竖排（M11b 舞台版式，对齐 preview-combat-v3）。
+   旧横排（左图右信息）是面板时代的产物；舞台里单位是场景中的角色，
+   全身像落地、信息收进脚下的名牌。 */
+.eunit {
+  display: flex;
+  align-items: center;
+}
+/* 玩家单位与敌人同款竖排（M22）：立绘 → 血条，一条中轴。
+   M25 把脚下的名牌也去掉了，脚下只剩 HP —— 单位宽度 = max(立绘, 血条下限 128)。
+   名牌时代的这套预算（立绘 136 / 名牌 200 / 满编 104）随之作废。
+   position: relative 是悬停浮层的定位锚点（见 .stats-more）。 */
+#player-panel .unit {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 浮层里的状态胶囊比全局的小一号：浮层宽度有限，
+   玩家 6-7 个状态图标要挤在浮层里 */
+#player-panel .stat,
+#enemy-panel .stat {
+  font-size: 10px;
+  padding: 1px 6px;
+}
+
+/* 状态图标片（M20）：文字胶囊精简为「图标 + 右下角数字角标」，
+   全名进 title（悬停可见），战斗日志仍是全名 —— 信息不丢，面板更清爽。
+   增益绿 / 减益红 / 中性灰（牌堆信息），底色都极淡，不抢立绘的戏。 */
+.bicon {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(60, 58, 52, .1);
+  user-select: none;
+}
+.bicon svg { width: 14px; height: 14px; }
+.bicon i {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+  min-width: 13px;
+  padding: 1.5px 2.5px;
+  border-radius: 6px;
+  text-align: center;
+  color: #FFFFFF;
+  background: #5B5B55;
+  border: 1px solid rgba(255, 255, 255, .65);
+  font-variant-numeric: tabular-nums;
+}
+.bicon-buff { color: #2E7B50; background: rgba(67, 151, 106, .13); }
+.bicon-buff i { background: #2E7B50; }
+.bicon-debuff { color: #A32D2D; background: rgba(196, 82, 76, .13); }
+.bicon-debuff i { background: #A32D2D; }
+/* 负值角标（锈冠的「敏捷 −1」）：紫黑 + 保留 stat-neg 类名供探针断言 */
+.bicon.stat-neg { color: #6E3A8C; background: rgba(110, 58, 140, .13); }
+.bicon.stat-neg i { background: #6E3A8C; }
+.bicon-neutral { color: #6B6B64; background: rgba(107, 107, 100, .1); }
+
+/* 形象。按档次给高度（宽度随长宽比自适应，另设上限防特别宽的图撑爆舞台）：
+   这四个数字是 SVG 剪影（位图缺失时的兜底）的尺寸；位图立绘的档位
+   另见下面 .unit-art .unit-bm（M46 起为 小怪 73 / 中 Boss 122 / 大 Boss 130 / 玩家 111）。
+   高度压这一档的原因：舞台宽度是定值，多敌同屏时右缘的意图胶囊
+   会被 overflow:hidden 裁掉（M21 满编实测）；尺寸是量出来的
+   （_m23-shot.js 的测量浮层），不是猜的。
+   max-width + object-fit: contain 的组合：超宽的图会在框内等比缩，不变形。 */
+.unit-art {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  /* M26：悬浮单位的地面影、出手残影都是绝对定位的子元素，
+     锚点就是这个盒子（踩坑 16：包含块要显式写，别靠猜） */
+  position: relative;
+  color: var(--digger);
+}
+.unit-art .art { width: 64px; height: 64px; }
+.art-kind-elite { color: #7A5417; }
+.art-kind-elite .art { width: 74px; height: 74px; }
+.art-kind-boss { color: #6E1A1A; }
+.art-kind-boss .art { width: 84px; height: 84px; }
+
+/* 玩家形象走角色主题色 —— 与卡面框色、资源标签共用同一个 --char，
+   换角色时三处一起变。 */
+.unit-art-player { color: var(--char); }
+.unit-art-player .art { width: 68px; height: 68px; }
+
+/* 位图立绘（v3 卡通全身）。高度按档次放大到舞台比例，宽度自适应
+   （掘者瘦高、爬虫扁宽）。object-fit: contain 防变形；
+   落影用 drop-shadow 跟着轮廓走，比椭圆色块自然。
+
+   M21 起尺寸走两个**独立因子相乘**：
+     --bm-scale = 窗口宽度档（媒体查询设，窄窗整体缩）
+     --crowd    = 同屏敌人数档（#enemy-panel[data-alive] 设，满编时再缩）
+   相乘而不是层层覆盖 —— 否则「窄窗口 + 满编」只有一层生效。
+
+   M23：基准整体缩了一档（112/140/175/170 → 99/123/154/150，约 ×0.88）。
+   窄窗档（--bm-scale: .8）与满编档（--crowd）都是**相对新基准**的倍率，
+   所以只改这里的字面量，三处档位一起跟着缩小。 */
+.unit-art .unit-bm {
+  width: auto;
+  max-width: calc(98px * var(--bm-scale, 1) * var(--crowd, 1));
+  height: calc(73px * var(--bm-scale, 1) * var(--crowd, 1));
+  object-fit: contain;
+  /* M44：落影偏移/ 模糊跟立绘基准同步收窄（8px/6px × 0.74 ≈ 5.9/4.4）。
+     写死的偏移在立绘矮 26% 后相对变粗 34%，脚底像垫了块垫子 —— 这是
+     「人物浮空」错觉的主因之一。基准改档时这条要跟着走。 */
+  filter: drop-shadow(0 5.9px 4.4px rgba(50, 48, 42, .28));
+  user-select: none;
+}
+.art-kind-elite .unit-bm {
+  /* M46：中 Boss 的个头必须**高过玩家**。M44 的档位是 小兵 73 / 中 Boss 91 /
+     玩家 111 / 大 Boss 130 —— 中 Boss 比玩家矮 20px，站位上「关底前的小关主」
+     反而比玩家小一号，气势倒挂。提到 122 后三档递进：
+     玩家 111 → 中 Boss 122（+10%）→ 大 Boss 130（+7%），且仍稳在大 Boss 之下。
+
+     max-width 127 → 165 是跟着高度一起放的**放行宽度**（不是目标宽度）：
+     精英立绘里最宽的是双头犬（900×665，w/h ≈ 1.35），122 高时自然宽 165 ——
+     上限低于它就会被 object-fit: contain 反过来压回高度，立绘反而长不满。
+     另两只（铁颚督军 1.07 / 蚀骨工匠 0.95）离上限还远，宽度由长宽比决定。 */
+  height: calc(122px * var(--bm-scale, 1) * var(--crowd, 1));
+  max-width: calc(165px * var(--bm-scale, 1) * var(--crowd, 1));
+}
+.art-kind-boss .unit-bm {
+  /* M46：小兵 73 / 中 Boss 122 / Boss 130 / 玩家 111。
+     M44 那轮（73 / 91 / 130 / 111）整体缩了一档，比例关系照旧；M46 只把
+     中 Boss 抬到玩家之上，大 Boss 仍是全场最大 —— 130 这一档不动。
+     满编仍吃 --crowd（见 data-alive="4" 的回退档）。 */
+  height: calc(130px * var(--bm-scale, 1) * var(--crowd, 1));
+  max-width: calc(166px * var(--bm-scale, 1) * var(--crowd, 1));
+}
+/* 满编回退：菌母 + 3 孢囊行者是全场唯一 4 敌场景。
+   M44 按新基准同比例收窄（154→111 / 202→145）：立绘小一档后，
+   单位宽度改由血条下限（76px）撑着，这条不再是宽度瓶颈，
+   但仍保留 --crowd 的一致性，不给满编开特例。 */
+#enemy-panel[data-alive="4"] .art-kind-boss .unit-bm {
+  height: calc(111px * var(--bm-scale, 1) * var(--crowd, 1));
+  max-width: calc(145px * var(--bm-scale, 1) * var(--crowd, 1));
+}
+.unit-art-player .unit-bm {
+  height: calc(111px * var(--bm-scale, 1) * var(--crowd, 1));
+  max-width: calc(101px * var(--bm-scale, 1) * var(--crowd, 1));
+}
+
+/* ============================================================
+   M45 待机幅度标定 —— 「人物动态掉了」的修复落点
+   ------------------------------------------------------------
+   idle-ground / idle-boss 动的是 **scale**，即一个比例：
+       头顶行程 = (1 − scaleY) × 立绘高
+   立绘一缩，行程自动等比例缩水。M26 定稿的 1.2%（按 150px 身板标定
+   = 1.8px）经 M23（×0.88）与 M44（×0.74）两轮压缩，到小兵身上
+   只剩 0.88px —— 亚像素级，重采样一糊就平，肉眼就是「不动」。
+   动态没被删，是被缩没了。
+
+   M48 重标定（这次动效「在跑但看不出来」的真正修法）：
+   M45 把幅度定在 3%（小兵起伏 2.19px），本以为够_visible_，实测下来是
+   **临界亚像素**：60fps 下相邻两帧头顶只差 0.065px，逐帧看几乎没变，
+   人眼读不出「在动」。各断点实测确认补偿无漏洞（1280~390px 七个宽度
+   实测起伏一律 3.66px，压缩档都被 --idle-sy 补回来了）——
+   所以问题不在补偿，在**标定值本身太保守**。
+
+   「看得见」不等于「总位移够大」，真正决定能否被读出的是
+   **每帧位移**（相邻帧的头顶 y 差）。它由两个量共同决定：
+       每帧位移 ≈ 行程 × 1.5 ÷ (半周期秒数 × 帧率)
+   （1.5 = ease-in-out 中段速度约为平均的 1.5 倍）
+   小兵 2.19px / 2.8s 周期 → 2.19 × 1.5 ÷ (1.4 × 60) = **0.065px/帧**。
+
+   M48 目标：**每帧位移 ≥ 0.25px**（能稳定读出「在动」的量级）。
+   仅加幅度不够（周期越长每帧越小），所以同时动三个量：
+       幅度  3% → 6%（小兵 2.19 → 4.38px，视觉上明确「有起伏」）
+       周期  2.8s → 2.0s（半周期 1.0s，每帧位移 ÷ 1.4）
+       横向  按 M26 原配比 +0.008 ÷ −0.012 = .667 同步放大到 .0400
+   结果：4.38 × 1.5 ÷ (1.0 × 60) = **0.109px/帧**，仍偏低 ——
+   于是 M48 一度把周期再收到 1.6s（半周期 .8s）→ **0.137px/帧**。
+
+   ⚠️ 真正的杠杆是周期：**加幅度会同时改形状**（挤压得太狠像「瘪了」），
+   而「周期收短」不改变形状只提高速度。但收得太短会从「呼吸」变成
+   「抖动/焦躁」—— M49 的教训正是这一条：1.6s 上线后用户反馈
+   「比之前快了不少」，于是**回退到 M48 的中间档 2.0s**。
+
+   M49：周期 1.6s → **2.0s**。小兵口径 0.137 → 0.109px/帧，
+   精英档（7.32px 行程 / 半周期 1.0s）= **0.183px/帧** ——
+   仍在 `m48-travel-matrix` 的可见阈值 0.10 之上。
+   这是节奏取舍（慢一点更从容），不是可见性回归。
+   ⚠️ 改周期**必须同步改 `js/ui/render.js` 的相位模数**（`% 1.6` → `% 2.0`）：
+   delay 越过周期会回绕，看起来「有的单位在动、有的几乎不动」。
+
+   → --idle-sy: .9400（1 − .06）/ --idle-sx: 1.0400（1 + .04）
+     基准周期 2.8s → **2.0s**（M49；Boss 深幅慢速另算，见 M30 段）
+
+   行程按比例给（不按尺寸逐个校正）：身板越大行程越深，
+   与小兵 4.38px / 中 Boss 7.32px / Boss 7.80px / 玩家 6.66px 相符 ——
+   大东西动得大，也仍动得慢（Boss 周期 2.6s，比普通单位沉）。
+   四个尺寸档因此**共用同一对数值**，只有下面两处需要补偿。
+
+   ⚠️ 补偿点在缩放链的末端：立绘实际高 = 基准 × --bm-scale × --crowd。
+   两者都会把行程再缩一次，窄窗档必须往上补：
+       ≤900（--bm-scale .8） → .0600 ÷ .8  = .0750 → sy .9250
+       ≤640（--bm-scale .67）→ .0600 ÷ .67 = .0896 → sy .9104（取到四位）
+   满编档（--crowd .72）不另补：那一档全场是孢囊行者小兵，
+   3.2px 的起伏配它 52px 的身板已经看得见；再往上补，
+   桌面满编的菌母会被推成夸张的「喘气」。
+
+   ⚠️ 维护铁律：改 --bm-scale / --crowd / 上面任何立绘基准数字，
+   这块都要跟着重算。它是全文件唯一一处「把比例换算回像素」的地方，
+   漏改一次，动态就会静默衰减一次 —— M44 就是这么丢的。
+   ⚠️ **M48 新增：改完必须跑 `node tests/m48-travel-matrix.js`** ——
+   它在真实浏览器里量各断点的实测行程与**每帧位移**，
+   「动画在跑但每帧位移是亚像素」这种静默失效，只有它能测出来。 */
+
+.unit-art { --idle-sx: 1.0400; --idle-sy: .9400; }
+
+/* 同屏敌人数档（M21）。菌母一局最多 4 个同屏（本体 + 3 只孢囊行者）。
+   舞台宽度是定值，人一多只能让单位变小 —— 但**缩立绘解决不了问题**：
+   实测菌母单位最宽的一块是**意图胶囊**「召唤 1 只孢囊行者（HP 30）」
+   = 232px，比立绘（M23 后满编只有 ~71）和名牌（104）都宽；孢囊行者单位则是被
+   名牌的 min-width 撑住的。所以三块要一起动：
+
+     立绘  → --crowd（见上面的 calc）
+     意图  → 缩字号 + 允许折行（max-width 收口，信息一个字不删）
+     名牌  → 收窄 min-width
+
+   ⚠️ 这里**没用 zoom 缩整个单位**：实测（_shot.js 描红框 + 基线）
+   Chromium 下 zoom 元素的 getBoundingClientRect 与实际渲染位置对不上，
+   两个独立指标（scrollWidth / rect）都报「没溢出」，截图里第 4 只
+   却被右缘裁掉半截 —— 布局算出来的和画出来的不是一回事，不能作为
+   验收依据。改回标准 CSS，行为可预测。
+   值由 Render.draw() 写在 data-alive 上（存活数，死了的不算）。 */
+#enemy-panel[data-alive="3"] { --crowd: .9; gap: 18px; }
+#enemy-panel[data-alive="4"] { --crowd: .72; gap: 16px; }
+
+/* 3 个起意图胶囊就收口折行：不折行的话光它一个就有 232px */
+#enemy-panel[data-alive="3"] .intent,
+#enemy-panel[data-alive="4"] .intent {
+  font-size: 10px;
+  max-width: 132px;
+  white-space: normal;
+  text-align: center;
+}
+/* 4 个时血条也收一档（M25）：单位宽 = max(立绘, 血条下限)，
+   满编的立绘只有 ~71px，宽度实际上全由血条的下限撑着。
+   M44：104 → 76，随基准同比例收窄。 */
+#enemy-panel[data-alive="4"] .intent { max-width: 120px; }
+#enemy-panel[data-alive="4"] .hprow { min-width: 76px; }
+
+/* ============================================================
+   M50 · 强化标记（变体 + 词缀）
+   ============================================================ */
+
+/* 常显在血条正上方（结构上是 .unit-art 与 .hprow 之间的一行 flex）。
+   为什么不收进悬停浮层：它是「这一场该怎么打」的前置信息 —— 挂荆棘就别用
+   多段攻击去磨、挂铁甲就先破甲；和 M45 把意图从浮层里摘出来是同一条理由。
+   铭牌与状态图标仍归浮层：那是身份与数值，不是打法。 */
+.affix-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+  margin: 3px 0 1px;
+}
+.affix-chip {
+  font: 500 10px/1.55 inherit;
+  padding: 0 5px;
+  border-radius: 7px;
+  background: var(--unit-tint, #7A5417);
+  color: #fff;
+  white-space: nowrap;
+}
+/* 满编 / 窄窗档跟着别的块一起收字号。**不缩血条下限** ——
+   单位宽度是 .hprow 的 min-width 撑的（M25），徽章只是往里塞内容。 */
+#enemy-panel[data-alive="3"] .affix-chip,
+#enemy-panel[data-alive="4"] .affix-chip {
+  font-size: 9px;
+  padding: 0 4px;
+}
+@media (max-width: 640px) {
+  .affix-chip { font-size: 9px; padding: 0 4px; }
+}
+
+/* 变体的体量感：靠**光环**，不是靠尺寸。
+   ① 尺寸会让立绘参与布局 → 满编档（M21/M30 逐像素预算）重新溢出；
+   ② 也不能给立绘加 filter —— 那一位已经被「落影」占着
+      （.unit-art .unit-bm 的 drop-shadow，M44 按立绘基准标定过偏移与模糊），
+      同属性再写一条会把它整个替换掉，脚底那圈自然投影就没了。
+   box-shadow 画在 .unit-art 这个盒子上：不参与布局、不碰任何 filter。 */
+.unit.is-variant .unit-art {
+  border-radius: 50%;
+  box-shadow: 0 0 15px 2px var(--unit-tint, #B4451F);
+}
+/* M56b 中 Boss「精锐」：在通用光环上加一圈实体描边（双环），
+   与大 Boss「强化」的单层红光区分开。描边画在同一个盒子上，
+   不参与布局、不碰 filter，满编像素预算不受影响。 */
+.unit.is-elite .unit-art {
+  box-shadow: 0 0 0 2px var(--unit-tint, #8A6A1F),
+              0 0 16px 3px var(--unit-tint, #8A6A1F);
+}
+/* 精锐徽章跟着描边一起走黄铜字重 —— 徽章本体仍用 --unit-tint 底色 */
+.unit.is-elite .affix-chip {
+  font-weight: 700;
+}
+/* 走 SVG 剪影的敌人（没有位图的那六只）直接换描边色 ——
+   位图不吃 currentColor，对它们这一条自然失效，只剩光环与徽章。 */
+.unit.is-grown .art-kind-normal { color: var(--unit-tint, #B4451F); }
+.unit.is-empowered .art-kind-boss { color: var(--unit-tint, #7A1F1F); }
+
+/* 意图：图标 + 文字前缀。文字一个都不能少（探针断言它以「意图」开头），
+   图标只是加在它前面。竖排单位里意图是头顶胶囊。
+   底色 / 描边 / 字号在 style.css 的 .intent 系列里（那里是它的定义处），
+   这里只补两样：图标与文字的间距，以及「压得住背景」的投影。 */
+.intent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(60, 58, 52, .16);
+}
+.intent .art-intent {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+/* .unit-side 随 M22 删除：玩家改竖排后不再需要「侧列」包裹，
+   立绘与血条直接是 .unit 的子元素（与敌人结构完全一致）。
+   血条本体颜色不分敌我：#player-panel .hpbar .fill 旧绿色覆盖已删，
+   双方统一杀戮尖塔式红条。 */
+
+/* 悬停浮层（M22 起，M25 扩成「单位的全部信息」）：名字 / 角色 / 深度 /
+   资源 / 状态图标 / 牌堆 —— 默认不可见，鼠标移到单位上才展开。
+   脚下因此只剩一根血条，画面干净了，信息一个没丢。
+   浮在**单位正上方**（定位锚点是 .unit）：血条紧贴立绘脚下，
+   浮在它上方会压住血条，浮到单位头顶才干净。
+   绝对定位 + pointer-events: none：完全不参与布局 —— 单位宽度、
+   满编降档（data-alive）这些既有宽度预算一律不受影响，
+   鼠标扫过也不会跳版式。
+   触屏没有悬停，往回退成常驻（见文件末尾的 hover: none 段）。 */
+.stats-more {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  /* 宽度下限：绝对定位元素的 shrink-to-fit 会被包含块（= 单位，M25 后只有
+     104–128px）卡住，名字 + 图标会挤成一根柱子。给个下限让它朝
+     「背对舞台外侧」的方向长出去 —— 有 left/right 那一侧兜着，不会跑偏。 */
+  min-width: 168px;
+  max-width: 260px;
+  padding: 5px 7px;
+  background: rgba(255, 255, 255, .97);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(60, 58, 52, .18);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .12s ease;
+  z-index: 8;
+}
+/* 展开方向按站位分：玩家在舞台左端 → 向右展（left: 0）；
+   敌人在右端 → 向左展（right: 0）。都朝舞台内侧长，
+   谁都不会把自己顶出 .battle-stage 的 overflow: hidden。
+   M22 时两侧都写 right: 0 —— 那时玩家单位有 200px 名牌垫着才没出事；
+   M25 名牌退役、单位只剩 ~128px，再向左展就会伸到舞台外被裁掉。 */
+#player-panel .stats-more { left: 0; right: auto; justify-content: flex-start; }
+#enemy-panel .stats-more { right: 0; left: auto; justify-content: flex-end; }
+/* 悬停在单位上（立绘或名牌都算）即展开 */
+.unit:hover .stats-more,
+.unit:focus-within .stats-more {
+  opacity: 1;
+  visibility: visible;
+}
+/* M64b：浮层可见时放行指针。visibility:hidden 期间维持 none 不挡人；
+   可见后 icon 上的 title 注释要靠悬停触发 —— pointer-events:none 的元素
+   不进命中测试，title 永远弹不出来。放行后鼠标可以移进浮层里逐个看注释，
+   浮层是 .unit 的子元素，:hover 链不断、浮层不会中途消失。 */
+.unit:hover .stats-more,
+.unit:focus-within .stats-more {
+  pointer-events: auto;
+}
+/* M64b：钉住态 —— 点自己的角色后浮层常驻（点其他内容解除，见 render.js）。
+   边框吃角色色作为「已钉住」的视觉回执；阴影略抬一档与悬停态区分。 */
+.unit.is-pinned .stats-more {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  border-color: var(--char, var(--border));
+  box-shadow: 0 6px 18px rgba(60, 58, 52, .26);
+}
+/* M43 收尾（延续 M25「脚下只留 HP」）：Boss 铭牌默认隐身 —— 单位身上常驻的
+   只剩血条一根，鼠标移上去信息全亮。
+   用 visibility + opacity 而不是 display:none：铭牌在流内、藏着也得占位
+   （不然立绘上移一格，M21/M30 的逐像素宽度预算全得重算）。
+   触屏没有悬停动作，必须常驻（见下方 hover: none 段）。
+
+   M45 修订：**意图胶囊不再走这条隐身路**。「它下一手要干什么」是战斗里最该
+   被一眼看见的信息；M43 把它一起收进悬停之后，不拿鼠标去扫就完全不知道对面
+   的打算 —— 用户实测反馈「敌人的动作意图还是需要加上」。现在意图默认就淡淡
+   亮着（.82），出手那一帧再自亮一下（.intent-reveal），鼠标悬停仍推到全亮。
+   Boss 铭牌维持 M43 的隐身行为：它是身份信息，不是待办动作。 */
+.eunit .boss-plate {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .12s ease;
+}
+/* 意图胶囊常显（M45）：桌面半亮 —— 看得见，又不跟立绘抢戏。
+   这里**不套媒体查询**：M45 首版写成 @media (hover:hover) and (pointer:fine)，
+   那会让「意图可不可见」取决于设备能力探测，触屏 / 粗指针机型全灭；
+   正确做法是默认常显，需要更强的地方（触屏）再往上推（见下方 hover: none）。 */
+.eunit .intent {
+  opacity: .82;
+  visibility: visible;
+  transition: opacity .12s ease;
+}
+/* 悬停在敌人上（立绘或血条都算）即全亮；出手自亮（.intent-reveal）也是全亮 */
+.eunit:hover .intent,
+.eunit:focus-within .intent,
+.eunit:hover .boss-plate,
+.eunit:focus-within .boss-plate,
+.eunit .intent.intent-reveal {
+  opacity: 1;
+  visibility: visible;
+}
+/* 出手自亮（M45）：敌人真出手那一帧，JS 给它的意图胶囊挂 .intent-reveal，
+   1100ms 后摘除（比挥击 420ms 长，打完后仍看得清刚才是哪一招）。
+   同时弹一下（intent-pop）—— 出手的敌人在一片静物里一眼可辨。
+   动画开关**不套媒体查询**（M24/M26 教训）：无头环境恒报 reduce，
+   写进查询里连定义都不存在，探针与截图永远验不到它。 */
+.eunit .intent.intent-reveal {
+  animation: intent-pop 1.1s ease-out both;
+}
+/* 触屏没有悬停动作：这些信息必须常驻，否则手机上完全看不到 */
+@media (hover: none) {
+  .stats-more {
+    position: static;
+    opacity: 1;
+    visibility: visible;
+    max-width: none;
+    padding: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+  }
+  /* M43：触屏没有悬停动作 —— 意图 / Boss 铭牌也得常驻，
+     否则手机上这两样信息完全看不到（M25 同一条铁律） */
+  .eunit .intent,
+  .eunit .boss-plate {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+/* keyframes 放媒体查询外（M24/M26 同一教训）：无头环境恒报
+   prefers-reduced-motion: reduce，写在查询内的话连定义都不存在，
+   截图与探针永远验不了这条动画。 */
+@keyframes intent-pop {
+  0%   { transform: scale(1); }
+  14%  { transform: scale(1.22); }
+  40%  { transform: scale(1); }
+  100% { transform: scale(1); }
+}
+
+/* 打斗反馈（M24）：出手前冲、受击后退、受击闪红三件套。
+   左右方向写死 —— 玩家恒在舞台左、敌人恒在右，所以「朝对面」与「向后」
+   是固定的方向，JS 不必传；由父容器分流即可。
+
+   位移一律走 transform，不参与布局：M23 的前后排抬高用的是 margin-bottom、
+   M11b/M21 的宽度预算算的是盒子尺寸，都不受影响。
+
+   ⚠️ @keyframes 定义在媒体查询**外面**，只有「何时应用」在媒体查询里。
+   关键帧定义本身没有副作用（没人引用就不生效），放外面是为了让验收工具
+   能引用它们 —— headless Edge 恒报 prefers-reduced-motion: reduce（试过
+   --force-prefers-reduced-motion=0 / --disable-features=PrefersReducedMotion
+   与 --headless=old，全都无效），定义写在媒体查询里的话，无头环境连
+   keyframes 都不存在，截图和探针永远验不了动画。 */
+
+/* 出手：朝对面冲一步再回来。20px 是相对立绘宽（~136px）的一小步 ——
+   够看出「扑」，又不至于越过对峙空隙撞到对面身上。
+   M73b：atk-lunge-r（向右）随玩家改原地帧动画而退役删除；
+   atk-lunge-l（向左）仍服务于敌人出手。 */
+@keyframes atk-lunge-l {
+  0%   { transform: translateX(0) scale(1); }
+  30%  { transform: translateX(-20px) scale(1.05); }
+  100% { transform: translateX(0) scale(1); }
+}
+
+/* 受击：被推开一步再晃回来。原来只有 4px 原地抖，看不出「挨了一下」；
+   现在退 11px + 轻微歪一下，是「被打得站不稳」而不是「被晃到」。 */
+@keyframes hit-knock-l {
+  0%   { transform: translateX(0) rotate(0); }
+  20%  { transform: translateX(-11px) rotate(-1.4deg); }
+  55%  { transform: translateX(3px) rotate(.5deg); }
+  100% { transform: translateX(0) rotate(0); }
+}
+@keyframes hit-knock-r {
+  0%   { transform: translateX(0) rotate(0); }
+  20%  { transform: translateX(11px) rotate(1.4deg); }
+  55%  { transform: translateX(-3px) rotate(-.5deg); }
+  100% { transform: translateX(0) rotate(0); }
+}
+
+/* 受击闪红。挂在 .unit-art 上而不是 .unit —— .unit 正在播位移，
+   两个动画抢同一个 transform 会互相覆盖；filter 与 transform 是两个
+   独立属性，分层正好。也只动 .unit-art，不碰 .unit-bm 自己的落影
+   （落影是构图的一部分，闪一下会看着像浮起来）。 */
+@keyframes hit-flash {
+  0%, 100% { filter: none; }
+  /* M44：光晕 8px → 6px（× 0.74）。不跟着立绘缩会溢出轮廓边缘。 */
+  22%      { filter: brightness(1.32) drop-shadow(0 0 6px rgba(206, 54, 44, .95)); }
+}
+
+/* ============================================================
+   M57 力量增强气场（设计稿 preview-str-aura.html 已审核通过）
+   ------------------------------------------------------------
+   触发：render.js feedback() 的力量快照 diff，增量 > 0 →
+   .unit-art 挂 is-strbuff + --str-n（= 增量）。三层：
+     ① str-glow   立绘红辉光「亮一下」（下面媒体查询里应用）
+     ② str-ring   脚底向外扩散一圈红环（::after 空闲已确认；
+                  大小随 --str-n 涨：+1 → 82px，+3 → 134px）
+     ③ 「力量 +N」飘字在 .str-float（文件后面，与 dmg-float 同段）
+   ①② 是装饰 → M58b 起为常驻规则（原 no-preference 媒体查询已随
+   「跟随系统 reduce = 玩家什么都看不见」的实测结论退役），随 html.fx-off 总开关停播；
+   关键帧照 M24 约定放规则区（headless 恒 reduce，放媒体查询里探针连 keyframes 都读不到）。
+   ⚠️ 与 hit-flash 同挂 .unit-art 的 filter 轴：同一帧既加力量又挨打时
+   is-hit（特异性更高）赢，气场让路 —— 挨打的反馈优先于变强的反馈。 */
+
+@keyframes str-glow {
+  0%   { filter: drop-shadow(0 0 0 rgba(206, 54, 44, 0)); }
+  22%  { filter: drop-shadow(0 0 14px rgba(206, 54, 44, .85)); }
+  100% { filter: drop-shadow(0 0 0 rgba(206, 54, 44, 0)); }
+}
+@keyframes str-ring {
+  0%   { opacity: 0; transform: translateX(-50%) scale(.55); }
+  28%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) scale(1.3); }
+}
+
+/* M58b：原包在 no-preference 媒体查询里，随 html.fx-off 总开关停播（见文件尾） */
+.unit-art.is-strbuff { animation: str-glow .75s ease-out; }
+.unit-art.is-strbuff::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  width: calc(56px + var(--str-n, 1) * 26px);
+  height: calc(18px + var(--str-n, 1) * 9px);
+  border-radius: 50%;
+  border: 3px solid rgba(206, 54, 44, .8);
+  box-shadow: 0 0 12px rgba(206, 54, 44, .5), inset 0 0 10px rgba(206, 54, 44, .3);
+  pointer-events: none;
+  animation: str-ring .75s ease-out both;
+}
+
+/* M58b：本块原先包在 no-preference 媒体查询里 —— 跟随系统 reduce 的
+   实测后果是玩家机器报 reduce 时**全套动效消失**（2026-10-15 用户反馈：
+   呼吸感没有、震屏没有）。现解包为常驻规则，统一由文件尾的
+   html.fx-off 总开关停播（localStorage td-fx=0，P1 设置面板接 UI）。
+   原注释存档：「选了减少动效的用户看到的是与改动前完全一样的静止界面
+   —— 反馈只靠飘字。无头浏览器恒匹配 reduce，探针读 CSSOM 规则文本。」 */
+/* M73b：玩家攻击改「原地帧动画」—— 不再位移（用户定稿：原地不位移，
+   以肩肘腕旋转为主）。is-attack 类仍挂（生命周期 / 探针断言依赖），
+   但玩家侧不再有任何 transform 位移；敌我共用突进就此只剩敌人一侧。
+   atk-lunge-r 关键帧随之无人引用，已删（M73b 清理孤儿）。 */
+  #enemy-panel  .is-attack { animation: atk-lunge-l .34s cubic-bezier(.34, 1.3, .5, 1); }
+
+  /* 延迟 50ms 制造「先出手、后命中」的时序感 */
+  #player-panel .is-hit { animation: hit-knock-l .36s ease-out .05s; }
+  #enemy-panel  .is-hit { animation: hit-knock-r .36s ease-out .05s; }
+
+  .unit.is-hit .unit-art { animation: hit-flash .32s ease-out .05s; }
+
+  /* ============================================================
+     M73 玩家攻击 / 防御动作（预览 preview-anim.html）
+     ------------------------------------------------------------
+     原则：位图立绘零改动 —— 只走 transform 与临时特效节点，
+     不换图、不裁图、不加工立绘本体，动作结束必须回到原形态。
+     攻击：.unit 层已有敌我共用的突进（atk-lunge-r，M24）+ 残影（M26）；
+     这里只给玩家在 .unit-art 上叠一段「挥击」—— 前倾展身 → 到位一压 →
+     回弹，与突进复合成「冲 + 抡」。用 :where() 压低特异性（0,2,0）：
+     同帧既出手又挨打时 is-hit（0,3,0）赢 —— 挨打的反馈优先，沿 M57 先例。
+     防御：格挡快照 diff（render.js _lastBlk，与 _lastHp 同一套机制）
+     增量 > 0 → .unit 挂 is-defend（620ms）：脚底为轴下压扎稳再回弹
+     （脚部像素不动，沿 idle-ground 的贴地铁律）+ 脚底淡蓝盾光环
+     （.block-ring 临时节点，播完自删）。敌人获得格挡不播 —— 需求只做玩家侧。
+     动画随文件尾 html.fx-off 总开关全停（.battle-stage * !important 兜住）。 */
+  :where(#player-panel) .is-attack .unit-art {
+    animation: atk-swing-p .6s cubic-bezier(.34, 1.3, .5, 1);
+    transform-origin: 50% 100%;
+  }
+  /* M73b：挤压拉伸撤掉（用户定稿：不做夸张挤压拉伸）——
+     只留以脚底为轴的轻微前倾（肩肘腕旋转由帧序列承担，躯干只配合 3.5°） */
+  @keyframes atk-swing-p {
+    0%   { transform: rotate(0deg); }
+    45%  { transform: rotate(3.5deg); }
+    70%  { transform: rotate(1.5deg); }
+    100% { transform: rotate(0deg); }
+  }
+  :where(#player-panel) .is-defend .unit-art {
+    animation: defend-brace .6s ease-out;
+    transform-origin: 50% 100%;
+  }
+  @keyframes defend-brace {
+    0%   { transform: scale(1, 1); }
+    30%  { transform: scale(1.07, .93); }
+    62%  { transform: scale(1.03, .97); }
+    100% { transform: scale(1, 1); }
+  }
+  .block-ring {
+    position: absolute;
+    left: 50%;
+    bottom: 2px;
+    width: 116%;
+    height: 16px;
+    border-radius: 50%;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse at center,
+                rgba(96, 156, 220, .5), rgba(96, 156, 220, .18) 52%, transparent 74%);
+    pointer-events: none;
+    animation: block-ring .6s ease-out both;
+  }
+  @keyframes block-ring {
+    0%   { opacity: 0; transform: translateX(-50%) scale(.55); }
+    30%  { opacity: 1; }
+    100% { opacity: 0; transform: translateX(-50%) scale(1.2); }
+  }
+
+  /* M26 待机动态：接地单位以脚底为轴轻微挤压舒展（transform-origin 在底部，
+     脚部像素不动）；悬浮单位（敌人 def.hover，拾荒者残影）走上下浮动。
+     动画挂在 img / svg 上而不是 .unit-art —— 那里还承担闪红（filter），
+     同一元素的两条 animation 声明会互相覆盖。相位错开由 JS 内联
+     animation-delay 实现（内联优先级高于这里的简写，覆盖成立）。 */
+  .unit-art > img, .unit-art > svg, .unit-art > .art {
+    transform-origin: 50% 100%;
+    /* M49：1.6s → 2.0s。M48 为了把「每帧位移」拉过可见阈值把周期收到 1.6s，
+       代价是节奏偏急（用户反馈「比之前快了不少」）。回到 M48 的中间档 2.0s：
+       精英档 7.32px 行程 / 半周期 1.0s = 0.183px/帧，仍在可见阈值 0.10 之上。
+       慢下来是节奏取舍，不是可见性回归 —— 详见下面 .unit-art 标定块。 */
+    animation: idle-ground 2.0s ease-in-out infinite;
+  }
+  .unit.is-hover .unit-art > img,
+  .unit.is-hover .unit-art > svg,
+  .unit.is-hover .unit-art > .art { animation-name: idle-bob; }
+  /* 影子必须与身体同周期 —— 错开会让「离地感」变成抖动。 */
+  .unit .oshadow { animation: idle-shadow 2.0s ease-in-out infinite; }
+
+  /* M30 Boss：待机换更沉的 idle-boss（深幅慢速），特异性 (0,2,0)
+     压过上面 (0,1,1) 的通用待机。M48：Boss 周期 4.2s → 2.6s ——
+     深幅本来就有存在感，比普通单位慢一档就够沉，不必再拉到 4.2s
+     （那样每帧位移反而掉回亚像素，又看不见了）。
+     M49：基准周期 1.6 → 2.0 后这里**不动**。2.6s 仍比普通单位慢，
+     且 Boss 行程最深（7.80px），周期再长会先掉回亚像素。 */
+  .art-kind-boss .unit-bm {
+    animation-name: idle-boss;
+    animation-duration: 2.6s;
+  }
+
+  /* M30 Boss 登场：类由 Render.resetFeedback() 挂到舞台、0.95s 后摘除。
+     特异性 (0,4,0) 压过待机，入场期间独占 transform/opacity/filter；
+     类摘除后自动落回 idle-boss，内联 delay 接管相位。 */
+  .battle-stage.boss-entering .art-kind-boss .unit-bm {
+    animation: boss-entrance .95s cubic-bezier(.25, .8, .3, 1) both;
+  }
+
+/* ============================================================
+   M53 拖拽出牌：卡 → 敌人 的投放交互
+   ------------------------------------------------------------
+   交互层两件套 + 一个退役标记，各占一个元素 / 伪元素 / 属性轴，互不打架：
+     幽灵卡   body 直挂的 .play-ghost（fixed 跟手；飞行 / 回弹两个过渡态）
+     瞄准高亮 .eunit.is-aim::before（脚下光晕）+ .unit-art（辉光 + 微放大）
+              —— img 在跑 idle 呼吸动画，transform 不能叠它，所以动 .unit-art；
+              ::before 在这版空出来了（旧红框 .is-target::before 已退役）
+     常驻角标 **已删**（M53c）：M53 的 is-target::after 红晕读感就是「红框」，
+              用户明令后面不再画 —— is-target 类仍作逻辑标记，但不许再挂红色视觉
+   ⚠️ 瞄准高亮是**金色**（M53c 同令）：rgba(206,54,44) 红色系全部退出选敌交互，
+   受击闪红（hit-flash）保留 —— 那是挨打反馈，不是选敌。
+   ⚠️ 全部写在媒体查询外：这是交互反馈，不是装饰动画 ——
+   reduce 用户照样要能看出「卡会落到谁身上」。
+   JS 侧见 render.js 的 bindCardDrag()（偏移量与阈值都定在那边）。 */
+.eunit .unit-art { transition: transform .13s ease, filter .13s ease; }
+.eunit { transition: opacity .15s ease; }
+
+.eunit.is-aim::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  width: 130%;
+  height: 16px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(198, 156, 68, .34), transparent 72%);
+  pointer-events: none;
+}
+.eunit.is-aim .unit-art {
+  transform: scale(1.06);
+  filter: drop-shadow(0 0 9px rgba(198, 156, 68, .6));
+}
+/* 瞄准中：没被指到的敌人退半步，视线聚焦到投放点 */
+.battle-stage.is-aiming .eunit:not(.is-aim) { opacity: .68; }
+
+/* 拿起卡后，原位只剩一张半透明「占位」 */
+.card.is-lift { opacity: .25; transform: scale(.94); filter: grayscale(.35); }
+
+/* 幽灵卡：跟手的那个。flying = 投放（收进敌人体内，居中缩小淡出）；
+   back = 落空回弹（带一点过冲）。fixed 挂 body —— 手牌每帧全量重建，
+   挂在手牌里会被立刻清掉（同 #view-combat 飘字的道理）。 */
+.play-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 999;
+  pointer-events: none;
+  will-change: transform;
+  cursor: grabbing;
+}
+.play-ghost.flying { transition: transform .2s cubic-bezier(.35, .7, .4, 1), opacity .2s ease; opacity: 0; }
+.play-ghost.back   { transition: transform .26s cubic-bezier(.2, .8, .3, 1.18); }
+
+/* 卡面禁掉原生拖拽 / 长按选择；拖起后该卡上禁掉滚动，
+   否则触屏拖到一半页面先滚走了 */
+.hand .card { touch-action: none; user-select: none; -webkit-user-select: none; }
+
+/* 伤害飘字。挂在 #view-combat 上而不是单位里 —— 单位面板每帧全量重建，
+   挂在里面会被立刻清掉。所以先给容器一个定位上下文。 */
+#view-combat { position: relative; }
+
+/* ============================================================
+   M26 人物动态与打击特效（自 preview-fx.html 并入）
+   与 M24 的分工：前冲 / 击退 / 闪红已有；这里补待机动态、
+   出手残影、命中特效层（弧光 / 冲击环 / 碎屑）、飘字增强。
+   ============================================================ */
+
+/* 待机（接地）：以脚底为轴轻微挤压舒展 —— translate 分量恒 0，
+   脚部像素不动，只有身体微起伏（设计目标是头顶走 ≈2px）。
+   上下平移会让脚离地，站着的单位就「飘」了 —— 接地单位禁用 translateY。
+
+   M45 幅度重修（这就是「人物动态掉了」的根因）：
+   原来是写死的 scale(1.008, .988) —— 一个**比例**。头顶行程 =
+   (1 − scaleY) × 立绘高。M26 定稿时按 150px 身板标定，1.2% → 1.8px；
+   此后 M23（×0.88）与 M44（×0.74）两轮压缩把小兵立绘打到 73px，
+   同一个比例只剩 0.88px —— 亚像素级，重采样一糊就平，肉眼完全看不出。
+   动态没被删掉，是被缩没了。
+   教训：**比例型动效在立绘基准变化时必须重新标定**，否则会随尺寸静默衰减；
+   M44 当时只同步缩了 idle-bob（绝对 px）与 hit-flash 光晕，漏了这一条。
+
+   现在改成「按目标行程反推比例」：每个尺寸档报一对 --idle-sx/--idle-sy
+   （50% 帧的 scale 值），见 .unit-art 段的 M45 标定块。
+   仍只动 scale，脚底像素照旧钉死不动。
+   用明文数值而不是 calc(1 ± var())：iOS Safari（M13 起支持）对
+   calc 嵌在 scale() 里、又跨 @keyframes 插值的组合不够稳，明文最保险。 */
+@keyframes idle-ground {
+  0%, 100% { transform: scale(1, 1); }
+  50%      { transform: scale(var(--idle-sx, 1.0400), var(--idle-sy, .9400)); }
+}
+
+/* M30 Boss 待机：与 idle-ground 同一套「脚底为轴的挤压舒展」语言
+   （translate 分量恒 0，脚部像素不动），但行程更深、周期比普通单位
+   长一档 —— 大东西呼吸就是慢。同款频率配 130px 身板会显得轻飘。
+   M45：与 idle-ground 共用同一对变量（刻度在同一个标定块里定）。
+   M48：周期 4.2s → 2.6s（见上面 .art-kind-boss 规则的注释 ——
+   4.2s 会把每帧位移压回亚像素）。fallback 值也必须跟着抬，
+   否则「--idle-sx 未定义」时（例如 detatch 后重挂的短暂间隙）
+   会退回旧的 3% 幅度，闪一下又不动。
+   ⚠️ 这里的关键帧与 idle-ground **完全相同**（共用变量与形状），
+   两份定义重复是为了让 Boss 用独立 animation-name、从而能单独
+   给它设 duration —— 若将来想让 Boss 有不同形状，改这里而不是改变量。 */
+@keyframes idle-boss {
+  0%, 100% { transform: scale(1, 1); }
+  50%      { transform: scale(var(--idle-sx, 1.0400), var(--idle-sy, .9400)); }
+}
+
+/* M30 Boss 登场：战斗开始的一次性入场。从暗处放大压下来再落定，
+   类（boss-entering）由 JS 挂在 .battle-stage 上 0.95s 后摘掉 ——
+   摘掉后落回上面的待机 keyframes，相位由内联 delay 接管，无缝。
+   keyframes 放媒体查询外（M24 教训：无头环境恒 reduce，写在查询内
+   连定义都不存在，探针验不了）。 */
+@keyframes boss-entrance {
+  0%   { transform: scale(1.22, 1.22) translateY(-14px); opacity: 0; filter: brightness(.25); }
+  55%  { transform: scale(.97, .97)  translateY(0);      opacity: 1; filter: brightness(1.1); }
+  72%  { transform: scale(1.03, 1.03); }
+  100% { transform: scale(1, 1); filter: brightness(1); }
+}
+/* 待机（悬浮）：只有敌人 def.hover（拾荒者残影）允许上下浮动。
+   M44：-6px × 0.74 ≈ -4.4px。摆幅不跟着立绘缩的话，占身高的比例从3%
+   涨到 8%，从「呼吸」变成「飘」—— 与立绘基准同比例收窄。 */
+@keyframes idle-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4.4px); }
+}
+/* 悬浮单位的地面椭圆影：升到最高点时影子最小最淡 —— 离地感的关键。
+   M58b 起动画常驻（原 no-preference 查询已退役），随 html.fx-off 停播。 */
+@keyframes idle-shadow {
+  0%, 100% { transform: translateX(-50%) scale(1); opacity: 1; }
+  50%      { transform: translateX(-50%) scale(.72); opacity: .5; }
+}
+.oshadow {
+  position: absolute; left: 50%;
+  /* M44：-7/9 × 0.74 ≈ -5.2/6.7。影子尺寸不跟着立绘缩的话，
+     会比脚掌宽出一圈，看着悬空 —— 与立绘基准同比例收窄。 */
+  bottom: -5.2px;
+  width: 62%; height: 6.7px; border-radius: 50%;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center,
+              rgba(28, 24, 18, .42), transparent 70%);
+  pointer-events: none;
+}
+
+/* 出手残影：复制立绘垫一层，向后拖出淡出。方向用 CSS 变量传
+   （玩家向右冲 → 残影向左拖；敌人相反），JS 设 --gx。
+   与 is-attack 同生命周期（JS 420ms 后一起删）。 */
+@keyframes fx-ghost {
+  0%   { opacity: .38; transform: translateX(0); }
+  100% { opacity: 0;  transform: translateX(var(--gx, -14px)); }
+}
+.unit-art .ghost {
+  position: absolute; inset: 0; margin: auto;
+  pointer-events: none;
+  animation: fx-ghost .32s ease-out both;
+}
+
+/* 命中特效层：挂在 #view-combat 上（与飘字同模式 —— 单位面板全量重建，
+   挂单位里会被下一帧清掉），按受击单位的视口坐标绝对定位。
+   reduce 用户的分流在 JS（matchMedia），这里不必再套媒体查询。 */
+.fxlayer { position: absolute; width: 0; height: 0; pointer-events: none; }
+
+/* 斩击弧光：SVG 双层（暖光衬底 + 白刃），划过 + 放大淡出 */
+.fx-slash {
+  position: absolute; left: -65px; top: -65px;
+  width: 130px; height: 130px;
+  filter: drop-shadow(0 0 7px rgba(255, 226, 150, .85));
+  animation: fx-slash .3s ease-out both;
+}
+@keyframes fx-slash {
+  0%   { opacity: 0; transform: rotate(-40deg) scale(.5); }
+  28%  { opacity: 1; }
+  100% { opacity: 0; transform: rotate(-28deg) scale(1.28); }
+}
+/* 冲击环：圆环扩散 */
+.fx-ring {
+  position: absolute; left: -48px; top: -48px;
+  width: 96px; height: 96px; border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 0 12px rgba(255, 214, 130, .75), inset 0 0 10px rgba(255, 214, 130, .5);
+  animation: fx-ring .48s ease-out both;
+}
+@keyframes fx-ring {
+  0%   { opacity: .95; transform: scale(.22); }
+  100% { opacity: 0;  transform: scale(1.85); }
+}
+/* 碎屑：8 片小方粒，随机方向飞散旋转（--dx/--dy/--c 由 JS 给） */
+.fx-spark {
+  position: absolute; left: -3.5px; top: -3.5px;
+  width: 7px; height: 7px; border-radius: 2px;
+  background: var(--c, #fff);
+  animation: fx-spark .55s ease-out both;
+}
+@keyframes fx-spark {
+  0%   { opacity: 1; transform: translate(0, 0) scale(1) rotate(0); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.35) rotate(160deg); }
+}
+
+@keyframes dmg-rise {
+  /* M72：砸下力度吃 --dmg-pop（分层递增，tier-3 = 1.15）—— 基础节奏不变 */
+  0%   { opacity: 0; transform: translate(-50%, 8px) scale(calc(1.4 * var(--dmg-pop, 1))); }
+  14%  { opacity: 1; transform: translate(-50%, 0) scale(calc(1.12 * var(--dmg-pop, 1))); }
+  40%  { opacity: 1; transform: translate(-50%, -6px) scale(calc(1.1 * var(--dmg-pop, 1))); }   /* M71：停一拍 */
+  70%  { opacity: .9; transform: translate(-50%, -26px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -52px) scale(.95); }
+}
+
+/* 飘字增强（M26）：18px 红字白边 → 24px 白字红描边，先砸大再上飘。
+   类名 / 宿主 / 文本格式（−数字）都没动 —— 探针绑死了这三样。 */
+.dmg-float {
+  position: absolute;
+  pointer-events: none;
+  font: 800 24px/1 Consolas, "Microsoft YaHei", monospace;
+  color: #fff;
+  text-shadow: 0 0 3px #7a1408, 0 2px 0 #7a1408, 0 -1px 0 #7a1408,
+               1px 0 0 #7a1408, -1px 0 0 #7a1408;
+  white-space: nowrap;
+  animation: dmg-rise 1.8s ease-out forwards;   /* M71：方案 B（0.9 → 1.8s，砸下停一拍再散） */
+}
+
+/* 伤害分层（M72）：伤害越大字越大越烫 —— 四档，阈值在 hitEffect（10/20/35）。
+   tier-0（1~9）就是上面那套基础样式，不另立规则。 */
+.dmg-float.tier-1 { font-size: 28px; color: #FFF3DE; }
+.dmg-float.tier-2 {
+  font-size: 32px;
+  color: #FFD98A;
+  text-shadow: 0 0 3px #7a1408, 0 2px 0 #7a1408, 0 -1px 0 #7a1408,
+               1px 0 0 #7a1408, -1px 0 0 #7a1408, 0 0 12px rgba(255, 150, 60, .55);
+}
+.dmg-float.tier-3 {
+  font-size: 38px;
+  color: #FF9A62;
+  --dmg-pop: 1.15;
+  text-shadow: 0 0 4px #4c0a04, 0 2px 0 #4c0a04, 0 -1px 0 #4c0a04,
+               1px 0 0 #4c0a04, -1px 0 0 #4c0a04, 0 0 16px rgba(255, 90, 40, .7);
+}
+
+/* M57 力量增强飘字「力量 +N」：挂 #view-combat（与 .dmg-float 同模式，
+   躲单位面板的全量重建），left/top 由 strEffect() 按单位视口坐标注入。
+   字号随力度涨：--str-n 由 JS 按增量设（+1 → 22px，+3 → 30px）。
+   动画在媒体查询外 —— 与 dmg-rise 同款约定：这是信息（加了几个），
+   reduce 用户同样要看得到。 */
+.str-float {
+  position: absolute;
+  z-index: 60;
+  pointer-events: none;
+  text-align: center;
+  line-height: 1.1;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  animation: str-float-rise 1.05s ease-out both;
+}
+.str-float i {
+  display: block;
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: #9C2620;
+  text-shadow: 0 1px 0 #FFF;
+}
+.str-float b {
+  display: block;
+  font-size: calc(18px + var(--str-n, 1) * 4px);
+  font-weight: 800;
+  color: #A32D2D;
+  text-shadow: 0 1px 0 #FFF, 0 2px 8px rgba(44, 44, 42, .22);
+}
+@keyframes str-float-rise {
+  0%   { opacity: 0; transform: translate(-50%, 12px) scale(.7); }
+  18%  { opacity: 1; transform: translate(-50%, 0) scale(1.18); }
+  100% { opacity: 0; transform: translate(-50%, -42px) scale(1); }
+}
+
+/* 卡面：类型用颜色区分（原来三行都是同一个灰色）。
+   边框色不动 —— ui-probe-char 断言 .card 的 borderTopColor 等于角色主题色。 */
+/* 必须写成 `.card .ctype-x`（两个类）—— style.css 里的 `.card .ctype { color: var(--hint) }`
+   特异性是 20，单类的 `.ctype-attack` 只有 10，会被它压掉、颜色根本不生效。 */
+.card .ctype { font-weight: 500; }
+.card .ctype-attack { color: #A32D2D; }
+.card .ctype-skill { color: #185FA5; }
+.card .ctype-power { color: #854F0B; }
+
+/* 费用圆点 → 铜币：金属渐变 + 内高光环 + 外圈稀有度细环 */
+.card .cost {
+  background: radial-gradient(circle at 32% 28%, #B07A28, #854F0B 72%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, .38),
+    0 0 0 2px var(--rar-soft, transparent);
+}
+
+/* ============================================================
+   卡面画窗 + 稀有度（B 方案卡画：42 图覆盖 72 卡）
+   - 画窗 .cart：通栏贴顶（负 margin 抵消卡片 padding），object-fit: cover
+   - 稀有度：名字前的宝石点（border-top 已被角色色/类型色占用，不动）
+     基础灰不放点（起始牌人人都有）；普通绿 / 稀有蓝 / 传说金 / 诅咒紫
+   ============================================================ */
+.card {
+  height: 202px; /* 原 148 + 画窗 54 */
+  padding-top: 0;
+}
+.card .cart {
+  margin: 0 -8px 4px;
+  height: 54px;
+  overflow: hidden;
+  border-radius: calc(var(--radius) - 2px) calc(var(--radius) - 2px) 0 0;
+  background: #EFEAD8;
+}
+.card .cart img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+}
+.card .cart + .cname { margin-top: 2px; }
+
+/* 旧版这里的 min-height: 192 已退役（M65）：.npc 改 style.css 统一定高 240，
+   两处定义高度必然漂移 —— 尺寸只留一处。 */
+.npc .cart {
+  margin: -10px -12px 4px;
+  height: 70px;
+  overflow: hidden;
+  border-radius: calc(var(--radius) - 2px) calc(var(--radius) - 2px) 0 0;
+  background: #EFEAD8;
+}
+.npc .cart img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+}
+.npc .cart + .npc-cost { margin-top: 0; }
+
+/* ============================================================
+   M27 卡面铭牌化 —— 边框按稀有度上色，整卡做成金属铭牌
+   - --rar：边框主色（style.css 的 .card / .npc 边框取它）
+   - --rar-soft：内刻线 / 费用环衬色的低饱和版
+   - 铆钉 ::before（四角）/ 内刻线 ::after（inset 3px，均不参与布局）
+   - 传说金常驻金晕（drop-shadow 不参与布局、不压 hover 投影）
+   边框原是角色色/类型色（M10 决策），M27 按用户要求改为稀有度区分。
+   ============================================================ */
+.card.rar-basic,    .npc.rar-basic    { --rar: #7E7A6A; --rar-soft: rgba(126, 122, 106, .5); }
+.card.rar-common,   .npc.rar-common   { --rar: #4E8A3A; --rar-soft: rgba(78, 138, 58, .5); }
+.card.rar-uncommon, .npc.rar-uncommon { --rar: #185FA5; --rar-soft: rgba(24, 95, 165, .5); }
+.card.rar-rare,     .npc.rar-rare     { --rar: #C9962B; --rar-soft: rgba(201, 150, 43, .55); }
+.card.rar-curse,    .npc.rar-curse    { --rar: #7A4A9E; --rar-soft: rgba(122, 74, 158, .5); }
+
+/* 四角铆钉：像铭牌四角的螺丝（一点色芯 + 一圈白高光） */
+.card::before,
+.npc::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 9px 9px, var(--rar) 2px, rgba(255, 255, 255, .85) 2.7px, transparent 3.6px),
+    radial-gradient(circle at calc(100% - 9px) 9px, var(--rar) 2px, rgba(255, 255, 255, .85) 2.7px, transparent 3.6px),
+    radial-gradient(circle at 9px calc(100% - 9px), var(--rar) 2px, rgba(255, 255, 255, .85) 2.7px, transparent 3.6px),
+    radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), var(--rar) 2px, rgba(255, 255, 255, .85) 2.7px, transparent 3.6px);
+}
+
+/* 内刻线：离边框 3px 的一圈细线，做出「铭牌镶边」的层次 */
+.card::after,
+.npc::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid var(--rar-soft);
+  border-radius: calc(var(--radius) - 3px);
+  pointer-events: none;
+}
+
+/* 传说金：常驻金晕。
+   M87/V2 哑光 → 绸光：外晕略加强，另加顶部内高光（inset 两条：
+   一道顶缘亮线 + 一片向下渐隐的暖光），让金底卡面有「厚度」。
+   底色平涂不动；uncommon 同语言弱化版（冷色高光，无外晕）。 */
+.card.rar-rare, .npc.rar-rare {
+  filter: drop-shadow(0 0 7px rgba(217, 169, 60, .55));
+  box-shadow: inset 0 1px 0 rgba(255, 235, 180, .6),
+              inset 0 16px 24px -14px rgba(255, 226, 150, .5);
+}
+.card.rar-uncommon, .npc.rar-uncommon {
+  box-shadow: inset 0 1px 0 rgba(200, 225, 245, .45),
+              inset 0 14px 22px -14px rgba(180, 210, 235, .4);
+}
+
+/* 画窗下沿一道稀有度细线，把插画「镶」进铭牌 */
+.card .cart { border-bottom: 1px solid var(--rar-soft); }
+.npc .cart { border-bottom: 1px solid var(--rar-soft); }
+
+/* 稀有度宝石点（基础灰不放点 —— 起始牌人人都有） */
+.card.rar-common .cname::before,
+.npc.rar-common .npc-name::before { content: '◆'; color: #4E8A3A; margin-right: 3px; font-size: 8px; }
+.card.rar-uncommon .cname::before,
+.npc.rar-uncommon .npc-name::before { content: '◆'; color: #185FA5; margin-right: 3px; font-size: 8px; }
+.card.rar-rare .cname::before,
+.npc.rar-rare .npc-name::before { content: '◆'; color: #C9962B; margin-right: 3px; font-size: 8px; }
+.card.rar-curse .cname::before,
+.npc.rar-curse .npc-name::before { content: '◆'; color: #7A4A9E; margin-right: 3px; font-size: 8px; }
+
+/* ============================================================
+   战斗背景 + 节点场景（M12，preview-assets-bg/）
+   图是 AI 位图（JPEG 无透明），上面蒙一层浅色纱保住
+   「矿工勘探手记」的浅色纸质主题，单位和名牌才压得住。
+   ============================================================ */
+.battle-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  /* 贴底对齐：位图地面（M19 重构后约占图高六成）完整落在舞台底部，
+     上方多出的部分裁顶 —— 建筑顶被裁一点没关系，地面是主角 */
+  background-position: center bottom;
+  z-index: 0;
+}
+/* M19：地面延伸带（旧 ::before）已删 —— 三张背景图重生成为「地面占六成」的
+   低地平线构图，单位底对齐后本来就站在位图地面上，平面色带反而会抹掉地面纹理。 */
+/* 浅色纱：顶部最重（标题/顶栏信息区）、底部最轻（地面保留场景感） */
+.battle-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    rgba(251, 250, 246, .68),
+    rgba(251, 250, 246, .34) 42%,
+    rgba(243, 241, 233, .16));
+}
+
+/* M30 Boss 战暗角：data-boss="1"（场上有活 Boss）时舞台四周压暗、
+   Boss 一侧（右）沉得更深 —— 开打第一眼就知道这不是普通遭遇战。
+   层级夹在背景(z0)与单位面板(z1)之间，pointer-events:none 不参与布局，
+   Boss 死透后 draw() 写 data-boss="0"，0.8s 内淡出。 */
+.battle-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .8s ease;
+  background:
+    radial-gradient(115% 95% at 50% 100%,
+      transparent 52%, rgba(24, 10, 12, .40) 100%),
+    linear-gradient(90deg,
+      transparent 58%, rgba(24, 10, 12, .26) 100%);
+}
+
+.battle-stage[data-boss="1"]::before { opacity: 1; }
+
+/* 三个深度带（与 Act 1 bossDepths 对齐）：类名由 Art.battleBgClass 给出。
+   background-color 取自各图底部地面采样均值（M19 _sample_bg.py 实测），
+   作用是位图加载期间的兜底色 —— 图到了就被 cover 盖掉：
+   band1 土路 #7A6752 / band2 石板 #202D34 / band3 苔石 #515D33 */
+.bg-band1 {
+  background-image: url('../preview-assets-bg/battle-band1.jpg');
+  background-color: #7A6752;
+}
+.bg-band2 {
+  background-image: url('../preview-assets-bg/battle-band2.jpg');
+  background-color: #202D34;
+}
+.bg-band3 {
+  background-image: url('../preview-assets-bg/battle-band3.jpg');
+  background-color: #515D33;
+}
+
+/* 面板与胜负横幅要浮在背景层之上（面板原本是 static） */
+#enemy-panel, #player-panel { position: relative; z-index: 1; }
+
+/* 节点面板的场景横幅：贴在标题栏上方，cover 裁切。
+   M41 两条修正（起因是面板从「内容撑宽」改成定宽 1040px）：
+   ① flex-shrink: 0 —— .placeholder.np 是纵向 flex 容器，横幅是它的子项。
+      面板内容一超高（商店 862px 塞进 643px），横幅会被当成可压缩项 squeeze，
+      实测被压到 2px（商店）/ 43px（删牌列表），等于场景图看不见了。
+   ② 宽屏抬到 178px —— 面板定宽后横幅恒为 1000px 宽，还是 132px 高的话，
+      960×581 的场景图取景比例会从 740/132 变成 1000/132，
+      可见部分从 29.5% 掉到 21.8%。178 = 1000 / (740/132)，取景与旧版持平。
+      窄屏维持 132px 不变（手机上原样）。 */
+.np-scene {
+  width: 100%;
+  height: 132px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--border);
+  display: block;
+  user-select: none;
+}
+
+/* 宽屏：面板铺满 1040px，横幅同步加高，取景比例与旧版持平 */
+@media (min-width: 1000px) {
+  .np-scene { height: 178px; }
+}
+
+/* ============================================================
+   窄窗口自适应（M12b）
+   舞台在 M11b 拿到 overflow:hidden，而两块面板是 flex-shrink:0 ——
+   窗口一窄（预览侧栏 / 1366 笔记本 / 手机），右侧敌人被整体裁掉，
+   界面上只剩玩家，看着就像「角色不见了」。三档收紧，任何宽度都不丢单位：
+     ≤1150 并栏（日志沉到舞台下方，把左栏还给它）
+     ≤900  缩立绘与名牌一档
+     ≤640  允许横滑（最后手段，也不让单位消失）
+   ============================================================ */
+@media (max-width: 1150px) {
+  .view-combat { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 900px) {
+  /* 立绘尺寸改由 --bm-scale 统一控制（M21）：当年的 92/112/140/136 就是基准的
+     0.8 倍，一处改档、四档联动，不必逐条重写。M44 基准又整体降了一档
+     （×0.74），这个 0.8 依然有效 —— 它是倍率，不是绝对尺寸。 */
+  :root { --bm-scale: .8; }
+  /* M44：窄屏的对峙间距同步放开（12 → 28）。桌面那条 clamp 在这档算出
+     88px 起、实际需要更紧 —— 但绝不能留在 12px，否则并栏后舞台全宽，
+     敌我贴在一起、缩小立绘省出的空间全浪费了。 */
+  .battle-stage { padding: 14px 14px 24px; gap: 28px; }
+  /* M44 补：style.css 的 .battle-stage[data-crowd="3"/"4"] 特异性是 (0,2,0)，
+     高这里的 .battle-stage (0,1,0) —— 媒体查询不提升特异性，所以那两条
+     （125 / 99）在这档照样生效，把刚放开的 28px 压回去。
+     并栏后舞台全宽、两侧各有 83px 余量（实机 800×900 满编实测），
+     放得下 99，但 28 更贴方案 C 的观感，且省下的宽度留给单位。 */
+  .battle-stage[data-crowd="3"] { gap: 28px; }
+  .battle-stage[data-crowd="4"] { gap: 28px; }
+  #player-panel, #enemy-panel { gap: 8px; }
+  /* 后排抬高一档收小（M23）：舞台高在这档只有 min-height 的 300px，
+     34px 的抬高会把 Boss 的意图胶囊顶出 overflow:hidden
+     （880px + 满编实测顶部余量 −4px，胶囊顶被切）。M44 立绘矮了 26%，
+     抬高量同步收窄（34 → 25），胶囊离顶更安全。 */
+  .eunit[data-rank="back"] { margin-bottom: 25px; }
+  /* 名牌的档位随 M25 退役，宽度下限改由血条承担。M44：116 → 88 随基准收。 */
+  .hprow { min-width: 88px; }
+  /* M48 待机幅度补偿：立绘乘了 .8，行程也跟着乘了 .8（4.38px → 3.50px）。
+     把比例往上补回来（÷ .8），实际行程回到与小兵基准同一水平。
+     见 .unit-art 段 M48 标定的「补偿点」注释。 */
+  .unit-art { --idle-sx: 1.0500; --idle-sy: .9250; }
+  /* Boss 血条窄屏档：比小兵宽、但比桌面档收一档（并栏后舞台全宽）。
+     M44：176 → 152 随基准收。data-alive 的回退规则特异性更高，
+     不受这两条影响。 */
+  .hprow-boss { min-width: 152px; }
+}
+
+/* 手机竖屏：舞台从「左右对峙」改成「敌上我下」两行（M13）。
+   390px 宽下横向塞「玩家 + 两个敌人」要 ~800px，横滑终究只是权宜；
+   纵向堆叠后每一行只需容纳一方的单位，一屏看得全。
+   overflow-x 仍留着当兜底：真遇到三个敌人塞不下时，宁可滑也不要丢单位。 */
+@media (max-width: 640px) {
+  .battle-stage {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 10px 14px;
+    /* 高度交给内容（敌我两行单位），不再 flex:1 抢剩余空间 ——
+       手机上剩余空间可能是负的，抢的结果就是面板被裁或被压到手牌上 */
+    flex: 0 0 auto;
+    overflow-x: auto;
+  }
+  /* M44 补：同上，特异性 (0,2,0) 压过 (0,1,0)，必须逐档复写。
+     这一档尤其要命 —— 舞台已改成纵向两行，gap 量的不再是「敌我左右对峙」，
+     而是**上下两行之间**的留白。放任 99px 的话，玩家行和敌人行之间
+     会隔出一整块空白（实机 390×844 实测：玩家脚底 y=377、敌人头顶
+     y=476，中间 99px 全是空的），看着像两场没打在一起的架。 */
+  .battle-stage[data-crowd="3"],
+  .battle-stage[data-crowd="4"] { gap: 8px; }
+  /* 同 900 档：0.67 倍基准（M44 基准 73/91/111/111 → 49/61/74/74） */
+  :root { --bm-scale: .67; }
+  /* M48 待机幅度补偿：同 900 档，÷ .67 把行程补回绝对值 */
+  .unit-art { --idle-sx: 1.0600; --idle-sy: .9104; }
+  #enemy-panel, #player-panel { justify-content: center; gap: 6px; }
+  /* 前后排错位在手机档只留一点：舞台本来就矮，抬高会把后排顶出可视区。
+     M44：12 → 9 随基准收，留 9px 看得出层次，又不挤坏版式。 */
+  .eunit[data-rank="back"] { margin-bottom: 9px; }
+  /* 满编收窄回 6px：手机档敌人一行横排，520px 下间距提到 10px 后
+     只剩 1px 余量，等于贴边。宁可挤一挤，也别靠 overflow-x 兜底。 */
+  #enemy-panel[data-alive="3"],
+  #enemy-panel[data-alive="4"] { gap: 6px; }
+  /* M44：100 → 68 / 140 → 96，血条下限随基准同比例收窄 */
+  .hprow { min-width: 68px; }
+  /* 手机档 Boss 血条（纵排后一行只放一方，放得下） */
+  .hprow-boss { min-width: 96px; }
+  /* M44 补：满编档的血条下限同样要在这档复写。
+     style.css 的 #enemy-panel[data-alive="4"] .hprow 特异性 (1,2,0)，
+     压得住上面那两条 (0,1,0) —— 于是手机满编实测每个单位仍被
+     76 / 120 的血条撑着，而立绘只有 35 宽（血条比立绘宽一倍多）。
+     四个单位横排 352px 顶着 354px 的内容宽，两侧各只剩 1px，
+     等于贴边（实机 390×844 满编实测）。这里把满编血条收到比立绘略宽，
+     留出真余量。特异性必须带 #enemy-panel 才压得住那两条。 */
+  #enemy-panel[data-alive="3"] .hprow,
+  #enemy-panel[data-alive="4"] .hprow { min-width: 52px; }
+  #enemy-panel[data-alive="3"] .hprow-boss,
+  #enemy-panel[data-alive="4"] .hprow-boss { min-width: 68px; }
+  /* 手机档敌上我下纵排：铭牌绝对定位会压到下方玩家面板 —— 藏回悬停浮层 */
+  .boss-plate { display: none; }
+  /* 意图胶囊原本 nowrap：长意图（「模仿：你上一张不是攻击牌」实测 184px）
+     会把它自己顶成整个单位里最宽的一块，反过来把敌人推出舞台。
+     手机档允许折行，宽度就交回给立绘 / 血条这两层决定。 */
+  .intent {
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.3;
+  }
+  /* M44 补：满编的 max-width 也要在这档复写 —— 上面那条 (0,1,0) 压不住
+     (1,1,0) 的 [data-alive="4"] .intent（120px）。实测手机满编时
+     Boss 单位被这条撑到 120 宽，是全场最宽的一块，比它自己的血条（68）还宽。
+     收到 72（比满编血条 68 略宽，留得住 12px 数字），单位宽回落到血条决定。 */
+  #enemy-panel[data-alive="3"] .intent,
+  #enemy-panel[data-alive="4"] .intent { max-width: 72px; }
+}
+
+/* ============================================================
+   M56 进化体体型档位 —— 「进化 = 更大」直接落在站位上
+   ------------------------------------------------------------
+   基准：普通小兵 73px。二阶 ×1.3–1.35 ≈ 96px，三阶 ×1.6–1.7 ≈ 120px，
+   二关新怪的进化体介于两者之间。max-width 是放行宽度（不是目标宽度）：
+   object-fit: contain 下宽度由长宽比决定，上限低于自然宽就会被压回。
+   满编 --crowd 与窄窗 --bm-scale 照常相乘，无特例。
+   待机呼吸（--idle-sx/sy 比例型）随身体变大行程自然变长
+   （96px 档 5.8px / 120px 档 7.2px，都在可见阈值之上），无需重标定。 */
+.art-id-rat_king .unit-bm,
+.art-id-sentinel_breach .unit-bm,
+.art-id-spore_gravid .unit-bm,
+.art-id-crawler_molt .unit-bm,
+.art-id-shade_gatherer .unit-bm {
+  height: calc(96px * var(--bm-scale, 1) * var(--crowd, 1));
+  max-width: calc(132px * var(--bm-scale, 1) * var(--crowd, 1));
+}
+
+.art-id-welder_overload .unit-bm {
+  height: calc(104px * var(--bm-scale, 1) * var(--crowd, 1));
+  max-width: calc(142px * var(--bm-scale, 1) * var(--crowd, 1));
+}
+
+.art-id-piledriver_breach .unit-bm {
+  height: calc(112px * var(--bm-scale, 1) * var(--crowd, 1));
+  max-width: calc(152px * var(--bm-scale, 1) * var(--crowd, 1));
+}
+
+.art-id-rat_tide .unit-bm,
+.art-id-sentinel_siege .unit-bm,
+.art-id-spore_mother .unit-bm,
+.art-id-crawler_maul .unit-bm,
+.art-id-shade_patch .unit-bm {
+  height: calc(120px * var(--bm-scale, 1) * var(--crowd, 1));
+  max-width: calc(166px * var(--bm-scale, 1) * var(--crowd, 1));
+}
+
+/* P0-3 顶栏遗物托盘（M58 P1 重做）：不再是「首字色片」，
+   直接放 Art.relic() 的物品造型 SVG —— 托盘就是面板图形的缩小版。
+   稀有度只决定描边色（currentColor），不再有边框 / 底板 ——
+   遗物是「物件」，与矩形纸牌刻意区分。 */
+.relic-tray { display: inline-flex; gap: 4px; vertical-align: middle; }
+
+.relic-chip {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  cursor: help;
+  user-select: none;
+  transition: transform .12s ease, filter .12s ease;
+}
+.relic-chip svg { width: 100%; height: 100%; }
+.relic-chip:hover { transform: scale(1.18); filter: brightness(1.2); }
+
+.relic-chip.rar-common,   .npc-relic.rar-common   { --rar: #4E8A3A; }
+.relic-chip.rar-uncommon, .npc-relic.rar-uncommon { --rar: #185FA5; }
+.relic-chip.rar-rare,     .npc-relic.rar-rare     { --rar: #C9962B; }
+.relic-chip { color: var(--rar); }
+
+/* 面板里的遗物大图（商店货架 / 宝箱 / 奖励共用）：
+   M63 起位图优先（末世卡通立体版），无位图的 id 退回同一份 SVG */
+.npc-relic-art {
+  display: flex;
+  justify-content: center;
+  color: var(--rar, var(--ink, #333));
+  margin: 4px 0 6px;
+}
+.npc-relic-art svg { width: 46px; height: 46px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .15)); }
+.npc-relic-art img.relic-img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .22));
+}
+
+/* P0-4 打击感：震屏 + 顿帧。
+   类由 Render.impactStage() 挂在 .battle-stage 上，超时自摘。
+   顿帧（is-freeze）只冻结后代动画：待机呼吸 / 漂浮 / 残影停一拍，
+   舞台自己的震屏动画不受影响（选择器是后代，不含舞台本身）。 */
+@keyframes stage-shake-s {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-3px, 1px); }
+  50% { transform: translate(3px, -1px); }
+  75% { transform: translate(-2px, 2px); }
+}
+@keyframes stage-shake-l {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-6px, 2px); }
+  40% { transform: translate(5px, -2px); }
+  60% { transform: translate(-4px, 1px); }
+  80% { transform: translate(3px, -1px); }
+}
+.battle-stage.is-shake-s { animation: stage-shake-s .22s linear; }
+.battle-stage.is-shake-l { animation: stage-shake-l .3s linear; }
+.battle-stage.is-freeze * { animation-play-state: paused !important; }
+/* M58b 动效总开关：html.fx-off 时游戏动效全停（替代旧的跟随系统 reduce ——
+   实测玩家机器向浏览器报 reduce，跟着它走 = 玩家什么都看不见）。
+   类由 app.js 按 localStorage td-fx=0 挂上（P1 设置面板接 UI）。
+   飘字（dmg-float / str-float）不在 .battle-stage 内、不受这条影响 ——
+   那是反馈本体，不是装饰动效。 */
+html.fx-off .battle-stage,
+html.fx-off .battle-stage *,
+html.fx-off .mnode.is-cur,
+html.fx-off .mnode.is-open,
+html.fx-off .edge.edge-open,
+html.fx-off .unit-art.is-strbuff::after { animation: none !important; }
+
+/* ==================== M58 P1：回合横幅 + 死亡表现 ==================== */
+
+/* P1-2 回合切换横幅：舞台中上部滑入停一拍再滑出。
+   挂在 .battle-stage 里（不参与布局），fx-off 时被总开关停播，
+   且 turnBanner() 压根不创建节点 —— 双保险。 */
+.turn-banner {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  transform: translateX(-50%);
+  padding: 9px 30px;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: 7px;
+  text-indent: 7px; /* 抵消最后一个字的字距，视觉居中 */
+  color: #F4E9D8;
+  background: rgba(18, 14, 10, .66);
+  border: 1px solid rgba(244, 233, 216, .35);
+  border-radius: 4px;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, .35);
+  pointer-events: none;
+  z-index: 6;
+  animation: turn-sweep .9s ease both;
+}
+@keyframes turn-sweep {
+  0%   { opacity: 0; transform: translateX(-50%) translateX(-42px); }
+  18%  { opacity: 1; transform: translateX(-50%) translateX(0); }
+  76%  { opacity: 1; transform: translateX(-50%) translateX(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateX(42px); }
+}
+
+/* P1-3 敌人死亡表现：亮一下 → 溶解下沉，0.45s 后由渲染层摘除。
+   动画挂 .unit-art（容器），不碰 .unit-bm 的待机呼吸 —— 同帧不打架。
+   0.55s 内渲染层仍画这具尸体，之后自动掉出名单。 */
+.unit.is-dying { pointer-events: none; }
+.unit.is-dying .unit-art {
+  animation: enemy-dissolve .45s ease-in both;
+}
+@keyframes enemy-dissolve {
+  0%   { opacity: 1; filter: none; transform: none; }
+  25%  { opacity: 1; filter: brightness(1.7) saturate(.5); }
+  100% { opacity: 0; filter: brightness(1.2) saturate(0) blur(2px);
+         transform: translateY(7px) scale(.9); }
+}
+
+/* M60 P2：Boss 阶段变化横幅（警示档）—— 与回合横幅同骨架，红调 + 微抖。 */
+.turn-banner.is-warn {
+  color: #FFD9D0;
+  border-color: rgba(224, 82, 60, .55);
+  background: rgba(74, 16, 12, .72);
+  animation: turn-sweep .9s ease both, warn-pulse .9s ease;
+}
+@keyframes warn-pulse {
+  0%, 100% { box-shadow: 0 2px 14px rgba(0, 0, 0, .35); }
+  30%      { box-shadow: 0 0 22px rgba(224, 82, 60, .5); }
+}

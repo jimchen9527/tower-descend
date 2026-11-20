@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>地图美化提案 · M70 设计稿</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/art.css">
+<style>
+html, body { margin: 0; background: #EFEDE5; }
+body { font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; color: #2C2C2A; padding: 16px 18px 40px; }
+h1 { font-size: 18px; margin: 0 0 4px; }
+.sub { font-size: 12.5px; color: #888780; margin: 0 0 14px; line-height: 1.6; max-width: 900px; }
+
+.ctl { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; font-size: 12.5px; }
+.ctl label { display: flex; gap: 5px; align-items: center; background: #FFF; border: 1px solid #E4E2DA; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.ctl button { cursor: pointer; font-size: 12px; font-weight: 600; color: #FFF; background: #5F5E5A; border: none; border-radius: 6px; padding: 6px 12px; }
+.tag { font-size: 11px; color: #888780; margin-left: 4px; }
+
+.panel { border: 1px solid #E4E2DA; border-radius: 12px; background: #FFF; padding: 10px; margin-bottom: 14px; }
+.panel h2 { font-size: 13px; margin: 0 0 8px; color: #5F5E5A; }
+.scroller { height: 620px; overflow: auto; border-radius: 8px; position: relative; }
+
+.notes { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; margin-top: 14px; }
+.notes .box { background: #FFF; border: 1px solid #E4E2DA; border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.7; }
+.notes h2 { font-size: 13px; margin: 0 0 6px; }
+.notes td { border-top: 1px solid #EFEEE8; padding: 4px 8px 4px 0; font-size: 12px; vertical-align: top; }
+@media (max-width: 800px) { .notes { grid-template-columns: 1fr; } }
+
+/* ===== 提案样式（只作用于 .v2 容器） ===== */
+.v2 { position: relative; border-radius: 10px; overflow: hidden; }
+.v2 .bg-grad { position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, #F8F5EC 0%, #EFEAE0 40%, #E0DACA 72%, #CFC9B8 100%); }
+.v2 .bg-side { position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, rgba(74,72,66,.16) 0%, rgba(74,72,66,0) 14%,
+    rgba(74,72,66,0) 86%, rgba(74,72,66,.16) 100%); }
+.v2 .bg-vign { position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 42%, rgba(0,0,0,0) 55%, rgba(60,58,52,.14) 100%); }
+.v2 .inner { position: relative; }
+
+/* 节点分档（③） */
+.v2 .nd { position: absolute; border-radius: 50%; display: grid; place-items: center;
+  background: #FFFDF8; box-sizing: border-box; border: 1.5px solid #7E7A6A;
+  box-shadow: 0 1px 3px rgba(60,58,52,.18); }
+.v2 .nd svg { width: 24px; height: 24px; }
+.v2 .nd.mt-boss { border-color: #A33A3A; border-width: 2px;
+  box-shadow: 0 0 0 3px rgba(163,58,58,.18), 0 2px 6px rgba(60,58,52,.25); }
+.v2 .nd.mt-boss svg { width: 28px; height: 28px; }
+.v2 .nd.mt-elite { border-color: #8A6A1F;
+  box-shadow: 0 0 0 2.5px rgba(138,106,31,.16), 0 1px 4px rgba(60,58,52,.2); }
+.v2 .nd.mt-elite svg { width: 26px; height: 26px; }
+.v2 .nd.is-locked { opacity: .48; filter: saturate(.55); background: #F3F1E9; }
+.v2 .nd.is-open { border-color: #4E8A3A; box-shadow: 0 0 0 3px rgba(78,138,58,.2); }
+.v2 .nd.is-cur { border-color: #A32D2D; border-width: 2px;
+  box-shadow: 0 0 0 4px rgba(163,45,45,.22), 0 2px 8px rgba(60,58,52,.3); z-index: 5; }
+.v2 .nd.is-done { opacity: .82; }
+
+/* ③ 关闭时：全部退回统一档（对照用） */
+.v2.flat .nd.mt-boss, .v2.flat .nd.mt-elite { border-color: #7E7A6A; border-width: 1.5px; box-shadow: 0 1px 3px rgba(60,58,52,.18); }
+.v2.flat .nd.mt-boss svg, .v2.flat .nd.mt-elite svg { width: 24px; height: 24px; }
+.v2.flat .nd.is-locked { opacity: 1; filter: none; background: #FFFDF8; }
+.v2.flat .nd.is-open, .v2.flat .nd.is-cur { border-color: #7E7A6A; box-shadow: 0 1px 3px rgba(60,58,52,.18); }
+.v2.flat .nd.is-cur { border-width: 1.5px; }
+</style>
+</head>
+<body>
+
+<h1>地图美化提案 · M70 设计稿</h1>
+<p class="sub">
+  同一张真实地图（同 seed、同批节点），上为<b>提案渲染</b>、下为<b>当前版式</b>对照。
+  三项改动可单独开关：① 连线曲线化（直线 → 自然 S 弧 + 已走路径双层描边）；
+  ② 井道纵深（背景越深越暗 + 波浪层理线 + 两侧渐暗 + 渐晕）；③ 节点分档（Boss / 中 Boss 放大加环、锁定节点退后）。
+  「换一张图」看不同 seed 下的效果。
+</p>
+
+<section class="ctl">
+  <label><input type="checkbox" id="tg-curve" checked> ① 连线曲线化</label>
+  <label><input type="checkbox" id="tg-depth" checked> ② 井道纵深（背景 / 波浪层理 / 渐暗）</label>
+  <label><input type="checkbox" id="tg-tier" checked> ③ 节点分档</label>
+  <button id="reseed">换一张图</button>
+  <span class="tag" id="seedtag"></span>
+</section>
+
+<section class="panel">
+  <h2>提案渲染（可开关）</h2>
+  <div class="scroller" id="sc-v2"><div class="v2" id="v2"></div></div>
+</section>
+
+<section class="panel">
+  <h2>当前版式（对照，正式样式渲染）</h2>
+  <div class="scroller" id="sc-old">
+    <div class="mapwrap"><div id="map-svg"></div><div id="map-nodes" class="mapnodes"></div></div>
+  </div>
+</section>
+
+<section class="notes">
+  <div class="box">
+    <h2>现状问题（实拍定位）</h2>
+    <table>
+      <tr><td>连线</td><td>全是直线段，横平竖直 + 锐角斜线交叉，机械感强；走过路径只加粗，颜色区分弱</td></tr>
+      <tr><td>层次</td><td>背景等距横线几乎不可见；节点全部同大小同亮度 —— Boss / 中 Boss 在中段被淹没</td></tr>
+      <tr><td>纵深</td><td>「越下越深的井」没有视觉表达：顶部和 D33 一个亮度</td></tr>
+      <tr><td>可读性</td><td>锁定 / 可选 / 当前三种状态亮度接近，扫一眼分不清能走哪</td></tr>
+    </table>
+  </div>
+  <div class="box">
+    <h2>落地清单（确认后进正式代码）</h2>
+    <table>
+      <tr><td>① 曲线</td><td>render-map.js：line → path（三次贝塞尔 S 弯，控制点 = 两端 y 中点）；.edge-walked 双层描边（art.css）</td></tr>
+      <tr><td>② 纵深</td><td>art.css：.mapwrap 背景换纵向渐变 + 两侧渐暗；层理线由 repeating-linear-gradient 改为逐层波浪 path（周期仍由 --row-h 对齐）</td></tr>
+      <tr><td>③ 分档</td><td>style.css：.mnode.mt-boss / .mt-elite（新类型类）尺寸与环；.is-locked 降透明降饱和</td></tr>
+      <tr><td>不动</td><td>节点定位数学（cx/cy）、点击 / 悬停 / 无障碍、地图数据结构 —— 纯渲染层</td></tr>
+      <tr><td>测试</td><td>探针：连线是 path 非 line、walked 双层、背景渐变存在、Boss 节点尺寸 &gt; 普通、fx-off 下静态可读</td></tr>
+    </table>
+  </div>
+</section>
+
+<script src="js/core/rng.js"></script>
+<script src="js/data/characters.js"></script>
+<script src="js/data/acts.js"></script>
+<script src="js/data/cards.js"></script>
+<script src="js/data/relics.js"></script>
+<script src="js/data/events.js"></script>
+<script src="js/data/enemies.js"></script>
+<script src="js/core/combat.js"></script>
+<script src="js/core/map.js"></script>
+<script src="js/core/run.js"></script>
+<script src="js/ui/art.js"></script>
+<script>
+(function () {
+  'use strict';
+  var CW = 76, RH = 62, PX = 44, PY = 28;
+  var seed = 20261018;
+
+  function draw() {
+    var curve = document.getElementById('tg-curve').checked;
+    var depth = document.getElementById('tg-depth').checked;
+    var tier = document.getElementById('tg-tier').checked;
+
+    Run.start('act1', seed);
+    var map = Run.state.map;
+    var maxCol = 0;
+    map.layers.forEach(function (l) { l.forEach(function (n) { if (n.col > maxCol) maxCol = n.col; }); });
+    var W = PX * 2 + (maxCol + 1) * CW;
+    var H = PY * 2 + map.depth * RH;
+    function cx(c) { return PX + c * CW + CW / 2; }
+    function cy(d) { return PY + (d - 1) * RH + RH / 2; }
+    document.getElementById('seedtag').textContent = 'seed ' + seed + ' · ' + map.depth + ' 层';
+
+    var v2 = document.getElementById('v2');
+    v2.style.width = W + 'px'; v2.style.height = H + 'px';
+    v2.classList.toggle('flat', !tier);
+
+    var curId = Run.current().id;
+    var edge = '', wave = '', nodes = '';
+
+    // ② 波浪层理：振幅随深度渐增
+    if (depth) {
+      for (var d = 1; d <= map.depth; d++) {
+        var y = PY + (d - 1) * RH;
+        var amp = 2.2 + d * 0.09;
+        var p = 'M0 ' + y.toFixed(1);
+        for (var x = 0; x < W; x += 120) {
+          var x2 = Math.min(x + 120, W);
+          p += ' Q ' + (x + 60) + ' ' + (y + (x / 120 % 2 ? amp : -amp)).toFixed(1) + ' ' + x2 + ' ' + y.toFixed(1);
+        }
+        wave += '<path d="' + p + '" fill="none" stroke="rgba(95,94,90,' +
+          (0.05 + d * 0.0012).toFixed(3) + ')" stroke-width="1"/>';
+      }
+    }
+
+    // ① 连线：曲线（C 弯）或直线；已走双层描边
+    map.layers.forEach(function (l) { l.forEach(function (n) {
+      var x1 = cx(n.col), y1 = cy(n.depth);
+      n.edges.forEach(function (id) {
+        var t = map.nodes[id];
+        var x2 = cx(t.col), y2 = cy(t.depth);
+        var walked = Run.state.visited[n.id] && Run.state.visited[id];
+        var d;
+        if (curve) {
+          var my = (y1 + y2) / 2;
+          d = 'M' + x1 + ' ' + y1 + ' C ' + x1 + ' ' + my + ', ' + x2 + ' ' + my + ', ' + x2 + ' ' + y2;
+        } else {
+          d = 'M' + x1 + ' ' + y1 + ' L ' + x2 + ' ' + y2;
+        }
+        if (walked) {
+          edge += '<path d="' + d + '" fill="none" stroke="rgba(140,74,66,.18)" stroke-width="6" stroke-linecap="round"/>' +
+                  '<path d="' + d + '" fill="none" stroke="#8C4A42" stroke-width="2.4" stroke-linecap="round"/>';
+        } else {
+          edge += '<path d="' + d + '" fill="none" stroke="rgba(95,94,90,.3)" stroke-width="1.6" stroke-linecap="round"/>';
+        }
+      });
+    }); });
+
+    // ③ 节点（提案：分档；tier 关 → 统一档）
+    map.layers.forEach(function (l) { l.forEach(function (n) {
+      var x = cx(n.col), y = cy(n.depth);
+      var done = n.type !== 'entry' && Run.state.cleared[n.id];
+      var isCur = n.id === curId;
+      var open = Run.canMoveTo(n.id);
+      var size = tier && n.type === 'boss' ? 44 : (tier && n.type === 'elite' ? 42 : 38);
+      var cls = 'nd mt-' + n.type + (isCur ? ' is-cur' : '') +
+        (done ? ' is-done' : '') + (open ? ' is-open' : '') +
+        ((!done && !open && !isCur) ? ' is-locked' : '');
+      var icon = done ? Art.check() : (n.type === 'boss' ? Art.bossBadge(n.bossTier) : Art.node(n.type, n.depth));
+      nodes += '<div class="' + cls + '" style="left:' + (x - size / 2) + 'px;top:' + (y - size / 2) +
+        'px;width:' + size + 'px;height:' + size + 'px" title="D' + n.depth + ' · ' + n.type + '">' + icon + '</div>';
+    }); });
+
+    var svgTop =
+      (depth ? '<div class="bg-grad"></div>' : '') +
+      '<svg width="' + W + '" height="' + H + '" style="position:absolute;left:0;top:0">' + wave + edge + '</svg>' +
+      '<div class="inner" style="width:' + W + 'px;height:' + H + 'px">' + nodes + '</div>' +
+      (depth ? '<div class="bg-side"></div><div class="bg-vign"></div>' : '');
+    v2.innerHTML = svgTop;
+    v2.style.background = depth ? 'transparent' : '#FBFAF6';
+
+    // ---------- 原版对照（正式样式：直线 + .mnode 按钮） ----------
+    var svg = document.getElementById('map-svg');
+    var wrap = document.getElementById('map-nodes');
+    var mw = wrap.closest('.mapwrap');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('width', W); svg.setAttribute('height', H);
+    var oldLines = '', oldNodes = '';
+    map.layers.forEach(function (l) { l.forEach(function (n) {
+      var x1 = cx(n.col), y1 = cy(n.depth);
+      n.edges.forEach(function (id) {
+        var t = map.nodes[id];
+        oldLines += '<line class="edge" x1="' + x1 + '" y1="' + y1 +
+          '" x2="' + cx(t.col) + '" y2="' + cy(t.depth) + '"></line>';
+      });
+      var done = n.type !== 'entry' && Run.state.cleared[n.id];
+      var isCur = n.id === curId;
+      var open = Run.canMoveTo(n.id);
+      var cls = ['mnode', 'mt-' + n.type];
+      if (isCur) cls.push('is-cur');
+      if (done) cls.push('is-done');
+      if (open) cls.push('is-open'); else cls.push('is-locked');
+      var icon = done ? Art.check() : (n.type === 'boss' ? Art.bossBadge(n.bossTier) : Art.node(n.type, n.depth));
+      oldNodes += '<button class="' + cls.join(' ') + '" style="left:' + (x1 - 19) + 'px;top:' + (y1 - 19) +
+        'px" title="D' + n.depth + ' · ' + n.type + '">' + icon + '</button>';
+    }); });
+    svg.innerHTML = oldLines;
+    wrap.innerHTML = oldNodes;
+    wrap.style.width = W + 'px'; wrap.style.height = H + 'px';
+    if (mw) { mw.style.width = W + 'px'; mw.style.height = H + 'px'; }
+
+    document.getElementById('sc-v2').scrollTop = 620;
+    document.getElementById('sc-old').scrollTop = 620;
+  }
+
+  ['tg-curve', 'tg-depth', 'tg-tier'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', draw);
+  });
+  document.getElementById('reseed').addEventListener('click', function () {
+    seed = (seed * 31 + 7) % 99991; draw();
+  });
+  draw();
+})();
+</script>
+</body>
+</html>

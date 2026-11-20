@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>R1 留存三件套 · 设计稿（图鉴 / 战绩 / 成就）</title>
+<style>
+  :root {
+    --bg: #F1EFE8; --panel: #FFFFFF; --panel-2: #FAFAF7;
+    --border: #D3D1C7; --border-strong: #B4B2A9;
+    --text: #2C2C2A; --muted: #5F5E5A; --hint: #888780;
+    --char: #5F5E5A; --hp: #A32D2D; --radius: 12px;
+    --gold: #B08A2E; --blue: #4A7A8C; --green: #6E8B4E; --purple: #8C5A7A;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 13px; line-height: 1.6; padding: 24px 16px 60px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; letter-spacing: .12em; margin: 0 0 4px; }
+  .doc-sub { color: var(--hint); font-size: 12px; letter-spacing: .18em; margin-bottom: 24px; }
+  h2 { font-size: 15px; margin: 36px 0 10px; letter-spacing: .1em; border-left: 4px solid var(--border-strong); padding-left: 10px; }
+  .note {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px 16px; font-size: 12.5px; color: var(--muted); margin-bottom: 12px;
+  }
+  .note b { color: var(--text); }
+  .note ul { margin: 6px 0 0; padding-left: 20px; }
+  .note li { margin: 2px 0; }
+
+  /* ============ 游戏内 mock 外框 ============ */
+  .mock {
+    background: var(--bg); border: 1px dashed var(--border-strong); border-radius: var(--radius);
+    padding: 26px 16px; display: flex; justify-content: center;
+  }
+  .menu-box {
+    width: 100%; max-width: 720px; padding: 28px 20px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    text-align: center;
+  }
+  .menu-title { font-size: 34px; font-weight: 700; letter-spacing: .35em; text-indent: .35em; }
+  .menu-sub { margin: 2px 0 22px; font-size: 11px; color: var(--hint); letter-spacing: .22em; }
+  .menu-btn {
+    width: 240px; padding: 12px 0; font-size: 15px; letter-spacing: .3em; text-indent: .3em;
+    font-family: inherit; border-radius: 10px; cursor: pointer; margin-bottom: 10px;
+    border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+    display: inline-block;
+  }
+  .menu-btn.primary { background: var(--text); color: #fff; border-color: var(--text); }
+  .menu-btn.ghost { background: transparent; }
+  .menu-btn.is-new { position: relative; }
+  .badge-new {
+    position: absolute; right: -34px; top: 50%; transform: translateY(-50%);
+    font-size: 10px; letter-spacing: .05em; text-indent: 0; color: #fff;
+    background: var(--hp); border-radius: 6px; padding: 2px 7px; font-weight: 700;
+  }
+
+  /* ============ Hub：三页签 ============ */
+  .hub { max-width: 780px; width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 18px 20px; }
+  .hub-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .hub-title { font-size: 17px; font-weight: 700; letter-spacing: .2em; flex: 1; }
+  .hub-back { font-size: 12px; color: var(--muted); border: 1px solid var(--border); background: var(--panel-2); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-family: inherit; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tab {
+    flex: 1; padding: 9px 0; text-align: center; font-size: 13.5px; letter-spacing: .2em; text-indent: .2em;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px;
+    cursor: pointer; color: var(--muted); font-family: inherit;
+  }
+  .tab.on { background: var(--text); color: #fff; border-color: var(--text); font-weight: 700; }
+  .tabpage { display: none; }
+  .tabpage.on { display: block; }
+
+  /* ---- 图鉴 ---- */
+  .char-chips { display: flex; gap: 6px; justify-content: center; margin-bottom: 10px; }
+  .chip {
+    padding: 5px 14px; font-size: 12px; border-radius: 8px; cursor: pointer; font-family: inherit;
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+  }
+  .chip.on { background: var(--char); color: #fff; border-color: var(--char); font-weight: 700; }
+  .sec-title { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .2em; margin: 14px 0 8px; display: flex; align-items: baseline; gap: 8px; }
+  .sec-title .cnt { color: var(--hint); font-weight: 400; letter-spacing: 0; }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+  .ccard {
+    position: relative; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 9px; padding: 8px 8px 7px; min-height: 84px; font-size: 11px; line-height: 1.45;
+  }
+  .ccard .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+  .ccard .nm { font-weight: 700; font-size: 12px; }
+  .ccard .cost {
+    width: 17px; height: 17px; border-radius: 50%; background: var(--text); color: #fff;
+    font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none;
+  }
+  .ccard .txt { color: var(--muted); font-size: 10.5px; }
+  .ccard .rar { position: absolute; top: 8px; right: 28px; width: 8px; height: 8px; border-radius: 50%; }
+  .rar-basic { background: #A8A79E; } .rar-common { background: var(--green); }
+  .rar-uncommon { background: var(--blue); } .rar-rare { background: var(--gold); }
+  .ccard.dim { background: var(--panel); border-style: dashed; color: var(--hint); }
+  .ccard.dim .nm { color: var(--hint); }
+  .ccard.dim .cost { background: var(--border); }
+  .ccard.dim .rar { background: var(--border); }
+  .ccard .lite { position: absolute; inset: 0; border-radius: 9px; background: rgba(241,239,232,.62); display: flex; align-items: center; justify-content: center; font-size: 15px; }
+  .ccard.seen-mark { box-shadow: 0 0 0 1.5px var(--gold); }
+
+  .relic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .rrelic {
+    display: flex; gap: 9px; align-items: flex-start; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 9px; padding: 8px;
+  }
+  .rrelic .ico {
+    width: 30px; height: 30px; flex: none; border-radius: 8px; background: var(--panel);
+    border: 1px solid var(--border-strong); display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .rrelic .nm { font-weight: 700; font-size: 12px; }
+  .rrelic .tx { font-size: 10.5px; color: var(--muted); line-height: 1.4; }
+  .rrelic.dim { opacity: .55; border-style: dashed; }
+  .rrelic.dim .ico { filter: grayscale(1); }
+  .rrelic .pend { font-size: 10px; color: var(--hint); }
+
+  .enemy-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 8px; }
+  .eitem { display: flex; align-items: center; gap: 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; padding: 6px 9px; font-size: 12px; }
+  .eitem .k { width: 22px; height: 22px; border-radius: 6px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; }
+  .k-n { background: #8A8A7A; } .k-e { background: var(--hp); } .k-b { background: #4A3A5C; }
+  .eitem.dim { opacity: .5; border-style: dashed; }
+
+  /* ---- 战绩 ---- */
+  .stat-chars { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .scard { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; }
+  .scard .h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .scard .h .nm { font-weight: 700; font-size: 13.5px; }
+  .scard .h .dl { font-size: 11px; color: var(--hint); }
+  .srow { display: flex; justify-content: space-between; font-size: 12px; padding: 2.5px 0; }
+  .srow .k { color: var(--muted); }
+  .srow .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .srow .v small { color: var(--hint); font-weight: 400; }
+  .dlbars { margin-top: 4px; }
+  .dlbar { display: flex; align-items: center; gap: 7px; font-size: 11px; margin: 3px 0; }
+  .dlbar .lb { width: 34px; color: var(--hint); flex: none; }
+  .dlbar .tr { flex: 1; height: 9px; background: var(--panel); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+  .dlbar .fl { height: 100%; background: var(--muted); }
+  .dlbar .n { width: 30px; text-align: right; color: var(--muted); flex: none; font-variant-numeric: tabular-nums; }
+
+  /* ---- 成就 ---- */
+  .ach-progress { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .ach-progress b { font-variant-numeric: tabular-nums; }
+  .ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(228px, 1fr)); gap: 8px; }
+  .ach {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 9px 11px; display: flex; gap: 10px; align-items: flex-start;
+  }
+  .ach .medal {
+    width: 30px; height: 30px; flex: none; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+    background: var(--panel); border: 2px solid var(--gold); color: var(--gold);
+  }
+  .ach.locked { opacity: .62; }
+  .ach.locked .medal { border-color: var(--border-strong); color: var(--border-strong); filter: grayscale(1); }
+  .ach .nm { font-weight: 700; font-size: 12.5px; }
+  .ach .cd { font-size: 11px; color: var(--muted); line-height: 1.45; }
+  .ach .bar { height: 5px; background: var(--panel); border: 1px solid var(--border); border-radius: 3px; margin-top: 5px; overflow: hidden; }
+  .ach .bar i { display: block; height: 100%; background: var(--gold); }
+  .ach.locked .bar i { background: var(--border-strong); }
+  .ach .pv { font-size: 10px; color: var(--hint); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--hint); margin: 8px 0 0; }
+  .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+
+  @media (max-width: 640px) {
+    .menu-btn { width: 100%; max-width: 280px; }
+    .hub { padding: 14px 12px 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>R1 留存三件套 · 设计稿</h1>
+  <div class="doc-sub">图鉴 / 战绩 / 成就 · 2026-10-24 · 确认后落地生产</div>
+
+  <div class="note">
+    <b>入口与结构</b>
+    <ul>
+      <li>主菜单新增「图鉴 · 战绩」按钮，排在「每日挑战」之后（有新解锁时挂红点）。</li>
+      <li>新 menu-page 承载三页签：图鉴 / 战绩 / 成就，复用 menu-box 视觉。</li>
+      <li>数据全部进本地存档（同 key 新增 codex / stats 两块），不碰云、不碰 run_log。</li>
+    </ul>
+  </div>
+
+  <!-- ═══════════ 入口 ═══════════ -->
+  <h2>① 主菜单入口</h2>
+  <div class="mock">
+    <div class="menu-box">
+      <div class="menu-title">竖井</div>
+      <div class="menu-sub">TOWER DESCEND · 下潜原型</div>
+      <div class="menu-btn primary">开始游戏</div>
+      <div class="menu-btn ghost">继续游戏</div>
+      <div class="menu-btn ghost">每日挑战</div>
+      <div class="menu-btn ghost is-new">图鉴 · 战绩<span class="badge-new">NEW</span></div>
+      <div class="menu-btn ghost">设置</div>
+    </div>
+  </div>
+
+  <!-- ═══════════ Hub ═══════════ -->
+  <h2>② 三页签 Hub（可点击切换体验）</h2>
+  <div class="mock">
+    <div class="hub">
+      <div class="hub-head">
+        <div class="hub-title">图鉴 · 战绩</div>
+        <button class="hub-back">← 返回</button>
+      </div>
+      <div class="tabs">
+        <button class="tab on" data-t="codex">图 鉴</button>
+        <button class="tab" data-t="stats">战 绩</button>
+        <button class="tab" data-t="ach">成 就</button>
+      </div>
+
+      <!-- ===== 图鉴 ===== -->
+      <div class="tabpage on" id="tp-codex">
+        <div class="char-chips">
+          <button class="chip on" data-c="0">探险者</button>
+          <button class="chip" data-c="1">医生</button>
+          <button class="chip" data-c="2">守炉人</button>
+        </div>
+
+        <div class="sec-title">卡牌（探险者）<span class="cnt">已点亮 9 / 51 · 入池可见，打出过才点亮</span></div>
+        <div class="card-grid" id="cgrid0"></div>
+
+        <div class="sec-title">遗物 <span class="cnt">已收集 5 / 22 · 拾取过才点亮；2 件待攀绳机制解锁，不在统计内</span></div>
+        <div class="relic-grid" id="rgrid"></div>
+
+        <div class="sec-title">敌人 <span class="cnt">已遭遇 4 / 25 · 遭遇即点亮，重复遭遇累计次数</span></div>
+        <div class="enemy-strip" id="egrid"></div>
+        <div class="legend">
+          <span><i class="rar-basic"></i>基础</span>
+          <span><i class="rar-common"></i>普通</span>
+          <span><i class="rar-uncommon"></i>罕见</span>
+          <span><i class="rar-rare"></i>稀有</span>
+          <span><i style="background:var(--border)"></i>未入池（按当前 DL 剪影）</span>
+        </div>
+      </div>
+
+      <!-- ===== 战绩 ===== -->
+      <div class="tabpage" id="tp-stats">
+        <div class="stat-chars">
+          <div class="scard">
+            <div class="h"><span class="nm">探险者</span><span class="dl">DL 3</span></div>
+            <div class="srow"><span class="k">下潜局数</span><span class="v">23</span></div>
+            <div class="srow"><span class="k">通关次数</span><span class="v">2 <small>(8.7%)</small></span></div>
+            <div class="srow"><span class="k">最深抵达</span><span class="v">28 层</span></div>
+            <div class="srow"><span class="k">累计战斗</span><span class="v">312</span></div>
+            <div class="dlbars">
+              <div class="dlbar"><span class="lb">DL1</span><div class="tr"><i class="fl" style="width:80%"></i></div><span class="n">2</span></div>
+              <div class="dlbar"><span class="lb">DL2</span><div class="tr"><i class="fl" style="width:40%"></i></div><span class="n">1</span></div>
+            </div>
+          </div>
+          <div class="scard">
+            <div class="h"><span class="nm">医生</span><span class="dl">DL 1</span></div>
+            <div class="srow"><span class="k">下潜局数</span><span class="v">4</span></div>
+            <div class="srow"><span class="k">通关次数</span><span class="v">0</span></div>
+            <div class="srow"><span class="k">最深抵达</span><span class="v">11 层</span></div>
+            <div class="srow"><span class="k">累计战斗</span><span class="v">52</span></div>
+            <div class="dlbars"><div class="dlbar"><span class="lb">尚无通关</span><div class="tr"></div><span class="n"></span></div></div>
+          </div>
+          <div class="scard">
+            <div class="h"><span class="nm">守炉人</span><span class="dl">未解锁</span></div>
+            <div class="srow"><span class="k">下潜局数</span><span class="v">—</span></div>
+            <div class="srow"><span class="k">通关次数</span><span class="v">—</span></div>
+            <div class="srow"><span class="k">最深抵达</span><span class="v">—</span></div>
+            <div class="srow"><span class="k">累计战斗</span><span class="v">—</span></div>
+          </div>
+        </div>
+        <div class="sec-title" style="margin-top:0">每日挑战</div>
+        <div class="srow" style="max-width:320px"><span class="k">累计通关</span><span class="v">9 天</span></div>
+        <div class="srow" style="max-width:320px"><span class="k">最近通关</span><span class="v">2026-10-23</span></div>
+        <div class="note" style="margin-top:12px">
+          <b>口径说明</b>：局数 / 通关 / 最深 / 战斗 = 本机存档累计（每局结算时写入）；每日挑战沿用 daily.wins。登录后的服务端 run_log 仅做运营侧核对，不进此页 —— 宁缺勿脏。
+        </div>
+      </div>
+
+      <!-- ===== 成就 ===== -->
+      <div class="tabpage" id="tp-ach">
+        <div class="ach-progress">已解锁 <b>3</b> / 18 · 成就全部由本地数据派生，无独立存储，补档自动追溯</div>
+        <div class="ach-grid" id="agrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 数据模型 ═══════════ -->
+  <h2>③ 数据模型（存档新增两块，版本号不跳）</h2>
+  <div class="note">
+<pre style="margin:0;font-size:11.5px;line-height:1.7;white-space:pre-wrap">save = {
+  version: 1, chars: {...}, daily: { wins: {...} },        // 现有不动
+  codex: {                                                  // 新增，旧档就地补默认空对象
+    cards:   { strike: 3, pry: 1, ... },                    // 卡牌id → 打出次数（含升级版？→ 不含，按基础卡归并）
+    relics:  { shaft_pendant: 1, ... },                     // 遗物id → 拾取次数
+    enemies: { rat_swarm: 7, ... },                         // 敌人id → 遭遇次数
+  },
+  stats: {                                                  // 新增
+    chars: { prospector: { runs, wins, bestDepth, battles, dlWins: {1:2, 2:1} }, ... },
+    lastDaily: '2026-10-23',                                // 最近每日通关日
+  },
+}</pre>
+    <ul>
+      <li>写入时机：卡/遗物在获得时记（store/reward），敌人遭遇时记（battle 开始），局末结算写 stats —— 均挂在现有存档点之后，不新增存档频率。</li>
+      <li>宽容合并：云存档 pull 时 codex/stats 按「数值取大」合并，与本档合并逻辑同层。</li>
+      <li>成就零存储：全部运行时从 codex / stats / daily 派生，改成就文案不迁移数据。</li>
+    </ul>
+  </div>
+
+  <h2>④ 成就首批清单（18 条，请圈阅增删）</h2>
+  <div class="note">
+    <b>下潜（7）</b>：初次下潜（完成 1 局）· 井底之光（首次通关）· 熟练工（通关 5 次）· 三线勘探（三角色各通关 1 次）· 深度适应（DL3 通关）· 老练下潜者（DL5 通关）· 井的主宰（DL10 通关）<br>
+    <b>深度（2）</b>：半途（单局抵达 17 层）· 触底（单局抵达 33 层）<br>
+    <b>每日（2）</b>：日常巡查（每日首次通关）· 全勤矿工（每日累计 7 天）<br>
+    <b>图鉴（5）</b>：初识井壁（点亮 20 卡）· 卡牌学者（60 卡）· 全卡大师（137 卡）· 收藏家（10 遗物）· 博物学家（22 遗物）<br>
+    <b>战斗（2）</b>：百战（累计 100 场战斗）· 巡井者（累计击杀 Boss 5 次）
+  </div>
+
+  <h2>⑤ 待确认项</h2>
+  <div class="note">
+    <ul>
+      <li><b>卡牌点亮规则</b>（本稿推荐 B）：
+        <b>A</b> DL 入池即亮 —— 零数据依赖，但没有收集动作感；
+        <b>B</b> 入池可见文字、本机打出过才点亮金色描边 —— 有收集感，成本一局一次写入。</li>
+      <li><b>敌人图鉴</b>：推荐纳入 v1（遭遇即记，一行写入）；若砍掉，图鉴只剩卡+遗物。</li>
+      <li><b>成就首批 18 条</b>：阈值与文案可调，确认后冻结。</li>
+      <li><b>红点提示</b>：菜单按钮上「有新解锁」红点，v1 先不做、R1.1 再加？（推荐先不做，减一个跨页刷新状态）</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+/* ---- 页签切换 ---- */
+document.querySelectorAll('.tab').forEach(function (t) {
+  t.addEventListener('click', function () {
+    document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('on'); });
+    document.querySelectorAll('.tabpage').forEach(function (x) { x.classList.remove('on'); });
+    t.classList.add('on');
+    document.getElementById('tp-' + t.dataset.t).classList.add('on');
+  });
+});
+
+/* ---- 卡牌示例（真实数据）---- */
+var cards = [
+  { n: '打击', c: 1, r: 'basic', t: '造成 6 点伤害。', seen: true },
+  { n: '防御', c: 1, r: 'basic', t: '获得 5 点格挡。', seen: true },
+  { n: '撬棍', c: 1, r: 'common', t: '造成 7 点伤害，攻击被格挡的部分改为直伤。', seen: true },
+  { n: '铁拳', c: 1, r: 'common', t: '造成 5 点伤害，连击时+3。', seen: true },
+  { n: '安全帽', c: 1, r: 'common', t: '获得 6 点格挡，再获得 3 点格挡。', seen: true },
+  { n: '碎石', c: 2, r: 'uncommon', t: '对全体敌人造成 8 点伤害。', seen: true },
+  { n: '修补', c: 1, r: 'common', t: '回复 5 点生命。', seen: true },
+  { n: '推压', c: 1, r: 'uncommon', t: '造成 6 点伤害并施加易伤 2。', seen: true },
+  { n: '撬动', c: 0, r: 'uncommon', t: '？？？', seen: false, dim: true },
+  { n: '支撑', c: 0, r: 'uncommon', t: '？？？', seen: false, dim: true },
+  { n: '断层凿', c: 0, r: 'rare', t: '？？？', seen: false, dim: true, locked: true },
+  { n: '余烬爆发', c: 0, r: 'rare', t: '？？？', seen: false, dim: true, locked: true },
+];
+var rarCls = { basic: 'rar-basic', common: 'rar-common', uncommon: 'rar-uncommon', rare: 'rar-rare' };
+document.getElementById('cgrid0').innerHTML = cards.map(function (c) {
+  return '<div class="ccard' + (c.dim ? ' dim' : '') + (c.seen ? ' seen-mark' : '') + '">' +
+    '<div class="top"><span class="nm">' + c.n + '</span>' +
+    (c.dim ? '' : '<span class="rar ' + rarCls[c.r] + '"></span><span class="cost">' + c.c + '</span>') +
+    '</div><div class="txt">' + c.t + '</div>' +
+    (c.locked ? '<div class="lite">🔒</div>' : '') + '</div>';
+}).join('');
+
+/* ---- 遗物示例（真实数据）---- */
+var relics = [
+  { n: '井壁吊坠', i: '🜛', t: '每场战斗第 1 回合额外获得 1 点能量。', seen: true },
+  { n: '老油灯', i: '🕯', t: '战斗记录中未看过的意图以文字提示。', seen: true },
+  { n: '黄铜齿轮', i: '⚙', t: '回合开始时抽 1 张牌。', seen: true },
+  { n: '鼠獠牙', i: '🦷', t: '对精英与 Boss 伤害 +15%。', seen: true },
+  { n: '矿工手套', i: '🧤', t: '每层第 1 场战斗获得 2 点额外能量。', seen: true },
+  { n: '锈蚀罗盘', i: '🧭', t: '？？？', seen: false },
+  { n: '深井提灯', i: '🏮', t: '？？？', seen: false },
+  { n: '断绳', i: '🪢', t: '待攀绳机制解锁', seen: false, pend: true },
+  { n: '火种读数仪', i: '🔥', t: '待攀绳机制解锁', seen: false, pend: true },
+];
+document.getElementById('rgrid').innerHTML = relics.map(function (r) {
+  return '<div class="rrelic' + (r.seen ? '' : ' dim') + '">' +
+    '<div class="ico">' + r.i + '</div><div><div class="nm">' + r.n + '</div>' +
+    '<div class="tx">' + r.t + '</div>' +
+    (r.pend ? '<div class="pend">🔒 遗物封印中</div>' : '') + '</div></div>';
+}).join('');
+
+/* ---- 敌人示例（真实数据）---- */
+var enemies = [
+  { n: '腐蚀鼠群', k: 'n', seen: true }, { n: '锈蚀哨兵', k: 'n', seen: true },
+  { n: '孢囊行者', k: 'n', seen: true }, { n: '电弧焊工', k: 'e', seen: true },
+  { n: '井壁爬虫', k: 'n', seen: false }, { n: '菌壳矛兵', k: 'n', seen: false },
+  { n: '拾荒者残影', k: 'e', seen: false }, { n: '？？？', k: 'b', seen: false },
+];
+document.getElementById('egrid').innerHTML = enemies.map(function (e) {
+  return '<div class="eitem' + (e.seen ? '' : ' dim') + '"><span class="k k-' + e.k + '">' +
+    (e.seen ? (e.k === 'b' ? '王' : e.k === 'e' ? '精' : '敌') : '?') +
+    '</span>' + e.n + '</div>';
+}).join('');
+
+/* ---- 成就示例 ---- */
+var achs = [
+  { n: '初次下潜', d: '完成第 1 局下潜。', p: 1, got: true, ico: '⛏' },
+  { n: '井底之光', d: '任一角色首次通关（DL1 通关 33 层）。', p: 1, got: true, ico: '💡' },
+  { n: '熟练工', d: '累计通关 5 次。', p: 2 / 5, pv: '2 / 5', ico: '🔧' },
+  { n: '三线勘探', d: '三个角色各通关 1 次。', p: 1 / 3, pv: '1 / 3', ico: '🧭' },
+  { n: '深度适应', d: 'DL3 难度下通关。', p: 0, pv: '0 / 1', ico: '🪜' },
+  { n: '老练下潜者', d: 'DL5 难度下通关。', p: 0, pv: '0 / 1', ico: '🪢' },
+  { n: '井的主宰', d: 'DL10 难度下通关。', p: 0, pv: '0 / 1', ico: '👑' },
+  { n: '半途', d: '单局抵达第 17 层。', p: 28 / 17, pv: '最深 28 / 17', ico: '🕯' },
+  { n: '触底', d: '单局抵达第 33 层。', p: 0, pv: '最深 28 / 33', ico: '🕳' },
+  { n: '日常巡查', d: '每日挑战首次通关。', p: 1, got: true, ico: '📋' },
+  { n: '全勤矿工', d: '每日挑战累计通关 7 天。', p: 9 / 7, pv: '9 / 7', ico: '📅' },
+  { n: '初识井壁', d: '图鉴点亮 20 张卡牌。', p: 9 / 20, pv: '9 / 20', ico: '📖' },
+  { n: '卡牌学者', d: '图鉴点亮 60 张卡牌。', p: 9 / 60, pv: '9 / 60', ico: '📚' },
+  { n: '全卡大师', d: '图鉴点亮全部 137 张卡牌。', p: 9 / 137, pv: '9 / 137', ico: '🏆' },
+  { n: '收藏家', d: '收集 10 件遗物。', p: 5 / 10, pv: '5 / 10', ico: '🎒' },
+  { n: '博物学家', d: '收集全部 22 件可拾取遗物。', p: 5 / 22, pv: '5 / 22', ico: '🔬' },
+  { n: '百战', d: '累计完成 100 场战斗。', p: 3.64, pv: '364 / 100', ico: '⚔' },
+  { n: '巡井者', d: '累计击杀 Boss 5 次。', p: 1 / 5, pv: '1 / 5', ico: '🛡' },
+];
+document.getElementById('agrid').innerHTML = achs.map(function (a) {
+  var full = a.p >= 1;
+  return '<div class="ach' + (full ? '' : ' locked') + '"><div class="medal">' + a.ico + '</div>' +
+    '<div style="flex:1"><div class="nm">' + a.n + '</div><div class="cd">' + a.d + '</div>' +
+    '<div class="bar"><i style="width:' + Math.min(100, a.p * 100) + '%"></i></div>' +
+    (a.pv ? '<div class="pv">' + a.pv + '</div>' : '') + '</div></div>';
+}).join('');
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="CardData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://cards/card_data.gd" id="1_script"]
+[ext_resource type="Script" path="res://cards/effect_spec.gd" id="2_step"]
+
+[sub_resource type="Resource" script_class="CardEffectStep" id="Step0"]
+script = ExtResource("2_step")
+kind = 7
+target = 2
+value = 0
+per_source = 2
+per = 5
+upgraded_per = 4
+status_kind = 0
+
+[resource]
+script = ExtResource("1_script")
+id = "pressure_valve"
+title = "压力阀"
+description = "消耗全部格挡，每 5 点使获得 1 点力量。"
+cost = 1
+card_type = 1
+rarity = 2
+discipline = 0
+unlock_depth = 5
+effects = Array[ExtResource("2_step")]([SubResource("Step0")])

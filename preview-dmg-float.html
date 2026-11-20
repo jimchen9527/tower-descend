@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>伤害数字停留时长 · 预览（M71）</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/art.css">
+<style>
+html, body { margin: 0; background: #EFEDE5; }
+body { font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; color: #2C2C2A; padding: 16px 18px 40px; }
+h1 { font-size: 18px; margin: 0 0 4px; }
+.sub { font-size: 12.5px; color: #888780; margin: 0 0 14px; line-height: 1.6; max-width: 900px; }
+
+.ctl { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+.ctl button { cursor: pointer; font-size: 12.5px; font-weight: 600; color: #FFF;
+  background: #A32D2D; border: none; border-radius: 6px; padding: 8px 14px; }
+.ctl button.ghost { background: #5F5E5A; }
+.ctl button.plain { background: #B4B2A9; }
+.ctl .tip { font-size: 11.5px; color: #888780; margin-left: 4px; }
+
+.stagebox { border: 1px solid #E4E2DA; border-radius: 12px; background: #FFF; padding: 10px; }
+.scroller { height: 460px; overflow: hidden; border-radius: 8px; position: relative; }
+.battle-stage { border-radius: 10px; }
+
+/* ===== 三种飘字节奏（预览专用；定稿后进 art.css） ===== */
+/* 现状：dmg-rise .9s（正式样式，按钮「当前」直接用） */
+
+/* 方案 A：慢速上飘 —— 曲线不变，时长 1.4s */
+@keyframes dmg-rise-a {
+  0%   { opacity: 0; transform: translate(-50%, 8px) scale(1.4); }
+  16%  { opacity: 1; transform: translate(-50%, 0) scale(1.12); }
+  100% { opacity: 0; transform: translate(-50%, -42px) scale(.95); }
+}
+.dmg-float.plan-a { animation: dmg-rise-a 1.4s ease-out forwards; }
+
+/* 方案 B：停一拍再散 —— 砸下后原地停 ~0.7s（数字看得清），再缓慢上飘淡出 */
+@keyframes dmg-rise-b {
+  0%   { opacity: 0; transform: translate(-50%, 8px) scale(1.4); }
+  14%  { opacity: 1; transform: translate(-50%, 0) scale(1.12); }
+  40%  { opacity: 1; transform: translate(-50%, -6px) scale(1.1); }   /* 停留 */
+  70%  { opacity: .9; transform: translate(-50%, -26px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -52px) scale(.95); }
+}
+.dmg-float.plan-b { animation: dmg-rise-b 1.8s ease-out forwards; }
+
+.dmg-float { position: absolute; z-index: 60; pointer-events: none; }
+.notes { display: grid; gap: 10px; grid-template-columns: 1fr; margin-top: 14px; max-width: 900px; }
+.notes .box { background: #FFF; border: 1px solid #E4E2DA; border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.7; }
+.notes h2 { font-size: 13px; margin: 0 0 6px; }
+.notes td { border-top: 1px solid #EFEEE8; padding: 4px 8px 4px 0; font-size: 12px; vertical-align: top; }
+</style>
+</head>
+<body>
+
+<h1>伤害数字停留时长 · 预览（M71）</h1>
+<p class="sub">
+  现状：伤害数字 0.9s 就淡出消失，经常没看清就没了。三个候选节奏（同一次砸下的
+  观感差异主要在「停多久、飘多快」），点按钮各砸一发对比；「连发对比」把三种
+  依次砸在同一只鼠群身上。
+</p>
+
+<section class="ctl">
+  <button data-plan="current">当前 0.9s</button>
+  <button data-plan="a">方案 A · 1.4s 慢速上飘</button>
+  <button data-plan="b">方案 B · 1.8s 停一拍再散</button>
+  <button class="ghost" id="compare">▶ 三种连发对比</button>
+  <button class="plain" id="clear">清屏</button>
+  <span class="tip">连点同一按钮 = 连击手感；数字位置随机偏移，模拟真实命中</span>
+</section>
+
+<section class="stagebox">
+  <div class="scroller">
+    <div class="battle-stage" style="min-height:440px">
+      <div class="battle-bg bg-band1" style="position:absolute;inset:0"></div>
+
+      <section id="enemy-panel" class="panel enemy">
+        <div class="unit eunit" data-eidx="0">
+          <div class="intent intent-atk"><span class="intent-text">意图 · 攻击 4</span></div>
+          <div class="unit-art art-kind-normal">
+            <img class="unit-bm" src="preview-assets-v3/rats-cut.png" alt="" draggable="false">
+          </div>
+          <div class="hprow"><div class="hpbar"><div class="fill" style="width:70%"></div></div><span class="hplabel">35 / 50</span></div>
+          <div class="stats-more"><span class="unit-name">腐蚀鼠群</span></div>
+        </div>
+      </section>
+
+      <section id="player-panel" class="panel player">
+        <div class="unit">
+          <div class="unit-art unit-art-player">
+            <img class="unit-bm" src="preview-assets-v3/digger-cut.png" alt="" draggable="false">
+          </div>
+          <div class="hprow"><div class="hpbar"><div class="fill" style="width:100%"></div></div><span class="hplabel">75 / 75</span></div>
+          <div class="stats-more"><span class="unit-name">掘者</span></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+
+<section class="notes">
+  <div class="box">
+    <h2>三种节奏的差异</h2>
+    <table>
+      <tr><td>当前 0.9s</td><td>砸下立刻上飘淡出 —— 快，但经常没看清数字</td></tr>
+      <tr><td>方案 A 1.4s</td><td>曲线不变、整体放慢：上飘更慢、淡出更晚，节奏最「顺」</td></tr>
+      <tr><td>方案 B 1.8s</td><td>砸下后<b>原地停 ~0.6s</b>（数字完全清晰可读），再缓慢上飘淡出 —— 信息最清楚，但连击时旧数字会多堆一会儿</td></tr>
+    </table>
+  </div>
+  <div class="box">
+    <h2>落地说明（选一个方案后进正式代码）</h2>
+    <table>
+      <tr><td>改哪</td><td>art.css 的 .dmg-float 动画时长（+ 方案 B 的 dmg-rise-b 关键帧）；render.js 里 remove 的 setTimeout 同步改（900 → 对应值）</td></tr>
+      <tr><td>不动</td><td>类名 / 文本格式 / 挂载位置（探针绑死）；力量飘字（.str-float）不在本次范围</td></tr>
+      <tr><td>连击堆积</td><td>方案 B 连击时同屏数字最多（3~4 个并存）——预览里连点感受一下</td></tr>
+      <tr><td>测试</td><td>探针：飘字存活时长 ≥ 选定值 − 50ms；类名 / 文本格式断言不动</td></tr>
+    </table>
+  </div>
+</section>
+
+<script>
+(function () {
+  'use strict';
+  var PLANS = {
+    current: { dur: 900,  cls: '' },
+    a:       { dur: 1400, cls: 'plan-a' },
+    b:       { dur: 1800, cls: 'plan-b' }
+  };
+
+  var enemy = document.querySelector('#enemy-panel .eunit .unit-art');
+
+  function hit(planKey) {
+    var plan = PLANS[planKey];
+    var host = document.querySelector('.scroller');
+    var er = enemy.getBoundingClientRect();
+    var hr = host.getBoundingClientRect();
+    var t = document.createElement('span');
+    t.className = 'dmg-float ' + plan.cls;
+    t.textContent = '−' + (6 + Math.floor(Math.random() * 9));
+    // 位置：敌人上半身附近，横向随机偏移（模拟连击的落点差）
+    t.style.left = (er.left - hr.left + er.width / 2 + (Math.random() * 44 - 22)) + 'px';
+    t.style.top = (er.top - hr.top + 14) + 'px';
+    host.appendChild(t);
+    setTimeout(function () { t.remove(); }, plan.dur + 60);
+  }
+
+  [].slice.call(document.querySelectorAll('.ctl button[data-plan]')).forEach(function (btn) {
+    btn.addEventListener('click', function () { hit(btn.dataset.plan); });
+  });
+
+  document.getElementById('compare').addEventListener('click', function () {
+    hit('current');
+    setTimeout(function () { hit('a'); }, 500);
+    setTimeout(function () { hit('b'); }, 1000);
+  });
+
+  document.getElementById('clear').addEventListener('click', function () {
+    [].slice.call(document.querySelectorAll('.scroller .dmg-float')).forEach(function (n) { n.remove(); });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>拖拽选敌 · 设计稿（M53）</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/art.css">
+<style>
+/* ============================================================
+   拖拽选敌 · 交互设计稿（M53）
+   ------------------------------------------------------------
+   需求：① 取消选中红框；② 卡片拖到敌人身上出牌，带动态效果。
+   本页是纯交互演示（假数据），复用正式的 css/style.css + css/art.css
+   与真实立绘/卡面 —— 看到的版式即实机版式，只多出拖拽层的样式。
+   ============================================================ */
+html, body { margin: 0; background: #F7F6F1; }
+body {
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  color: #2C2C2A;
+  max-width: 1180px; margin: 0 auto; padding: 18px 20px 40px;
+}
+
+/* ---------- 页头 ---------- */
+.hd { display: flex; align-items: flex-start; gap: 18px; margin-bottom: 14px; }
+.hd h1 { font-size: 19px; margin: 0 0 4px; }
+.hd .sub { margin: 0; font-size: 12.5px; color: #888780; line-height: 1.55; max-width: 760px; }
+.hd .cmp {
+  margin-left: auto; flex: 0 0 auto; align-self: center;
+  font-size: 12px; color: #5F5E5A; background: #FFF;
+  border: 1px solid #E4E2DA; border-radius: 999px; padding: 7px 14px;
+  cursor: pointer; user-select: none; white-space: nowrap;
+}
+.hd .cmp input { vertical-align: -2px; margin-right: 6px; }
+
+/* ---------- 舞台：结构与实机一致 ---------- */
+.stage-wrap { position: relative; }
+.battle-stage { border-radius: 12px; border: 1px solid #E4E2DA; overflow: hidden; }
+
+/* ⚠️ 设计稿本体第一条：红框默认不存在。
+   style.css 的 .eunit.is-target::before（虚线椭圆）在这里被关掉，
+   勾选「显示旧版红框」才临时恢复，方便对照。 */
+.battle-stage .eunit.is-target::before { content: none; }
+.battle-stage.show-old-ring .eunit.is-target::before {
+  content: '';
+  position: absolute; left: 50%; top: 42%;
+  width: 108%; height: 84%;
+  transform: translate(-50%, -50%);
+  border: 2.5px dashed rgba(163, 45, 45, .65);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* ---------- 拖拽层（与正式实现同款；正式版在 css/art.css M53 段） ---------- */
+
+/* 敌人立绘的过渡：瞄准高亮要平滑 */
+.eunit .unit-art { transition: transform .13s ease, filter .13s ease; }
+.eunit { transition: opacity .15s ease; }
+
+/* 瞄准态：指到的敌人 = 金色辉光 + 微放大 + 脚下光晕。
+   （M53c：原红色辉光按「后面不再画红框」改金；角标已整体移除） */
+.eunit.is-aim::before {
+  content: '';
+  position: absolute; left: 50%; bottom: 30px;
+  width: 130%; height: 16px; transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(198, 156, 68, .34), transparent 72%);
+  pointer-events: none;
+}
+.eunit.is-aim .unit-art {
+  transform: scale(1.06);
+  filter: drop-shadow(0 0 9px rgba(198, 156, 68, .6));
+}
+/* 瞄准中：没被指到的敌人退半步，视线聚焦 */
+.battle-stage.is-aiming .eunit:not(.is-aim) { opacity: .68; }
+
+/* 拿起卡后，原位只剩一张半透明「占位」 */
+.card.is-lift { opacity: .25; transform: scale(.94); filter: grayscale(.35); }
+
+/* 幽灵卡：跟手的那个 */
+.ghost {
+  position: fixed; left: 0; top: 0; z-index: 999;
+  pointer-events: none; will-change: transform;
+  cursor: grabbing;
+}
+.ghost.flying { transition: transform .2s cubic-bezier(.35, .7, .4, 1), opacity .2s ease; opacity: 0; }
+.ghost.back   { transition: transform .26s cubic-bezier(.2, .8, .3, 1.18); }
+
+/* 命中飘字 */
+.demo-dmg {
+  position: absolute; z-index: 60; left: 50%; top: 18%;
+  transform: translateX(-50%);
+  font-size: 22px; font-weight: 800; color: #A32D2D;
+  text-shadow: 0 1px 0 #FFF, 0 2px 6px rgba(44, 44, 42, .18);
+  pointer-events: none;
+  animation: demoFloat .85s ease-out both;
+}
+@keyframes demoFloat {
+  0%   { opacity: 0; transform: translate(-50%, 6px) scale(.8); }
+  18%  { opacity: 1; transform: translate(-50%, 0) scale(1.12); }
+  100% { opacity: 0; transform: translate(-50%, -34px) scale(1); }
+}
+
+/* ---------- 手牌 ---------- */
+.hand-wrap { margin-top: 4px; }
+.hand { min-height: 158px; padding: 10px 4px 0; }
+.hand .card { touch-action: none; user-select: none; -webkit-user-select: none; }
+
+/* ---------- 说明区 ---------- */
+.notes {
+  margin-top: 22px; display: grid; gap: 10px;
+  grid-template-columns: 1fr 1fr;
+}
+.notes .box {
+  background: #FFF; border: 1px solid #E4E2DA; border-radius: 10px;
+  padding: 12px 14px; font-size: 12.5px; line-height: 1.7;
+}
+.notes h2 { font-size: 13px; margin: 0 0 6px; color: #2C2C2A; }
+.notes table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.notes td { border-top: 1px solid #EFEEE8; padding: 4px 6px 4px 0; vertical-align: top; }
+.notes td:first-child { color: #888780; white-space: nowrap; padding-right: 12px; }
+@media (max-width: 800px) { .notes { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <div>
+    <h1>拖拽选敌 · 设计稿（M53）<span style="font-size:11px;font-weight:600;color:#FFF;background:#588854;border-radius:999px;padding:3px 10px;vertical-align:3px;margin-left:8px">已确认 · 已确认 · 正式版已落地 2026-10-12</span></h1>
+    <p class="sub">
+      红框已取消 —— 目标由「卡牌落到谁身上」决定。<b>把下面任意一张卡拖到敌人身上松手</b>
+      （鼠标 / 触屏都可以）；直接点卡 = 打当前目标（默认最前的敌人，出手动画会告诉你打的是谁）；
+      拖到空处松手 = 卡牌弹回。敌人血量见底会自动回满，方便反复试。
+    </p>
+  </div>
+  <label class="cmp"><input type="checkbox" id="old-ring">显示旧版红框（对照）</label>
+</header>
+
+<section class="stage-wrap">
+  <div class="battle-stage" id="stage">
+    <div id="battle-bg" class="battle-bg bg-band1" hidden></div>
+
+    <section id="enemy-panel" class="panel enemy">
+      <div class="unit eunit is-target" data-eidx="0" data-rank="front" data-hp="14" data-max="14">
+        <div class="unit-art art-kind-normal">
+          <img class="unit-bm" src="preview-assets-v3/rats-cut.png" alt="" draggable="false" style="animation-delay:-0.90s">
+        </div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:100%"></div></div><span class="hplabel">14 / 14</span></div>
+        <div class="stats-more"><span class="unit-name">大鼠</span></div>
+      </div>
+      <div class="unit eunit" data-eidx="1" data-rank="front" data-hp="22" data-max="22">
+        <div class="unit-art art-kind-normal">
+          <img class="unit-bm" src="preview-assets-v3/spore_walker-cut.png" alt="" draggable="false" style="animation-delay:-1.80s">
+        </div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:100%"></div></div><span class="hplabel">22 / 22</span></div>
+        <div class="stats-more"><span class="unit-name">孢囊行者</span></div>
+      </div>
+      <div class="unit eunit" data-eidx="2" data-rank="back" data-hp="45" data-max="45">
+        <div class="unit-art art-kind-elite">
+          <img class="unit-bm" src="preview-assets-v3/warlord-cut.png" alt="" draggable="false" style="animation-delay:-0.70s">
+        </div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:100%"></div></div><span class="hplabel">45 / 45</span></div>
+        <div class="stats-more"><span class="unit-name">铁颚督军</span></div>
+      </div>
+    </section>
+
+    <section id="player-panel" class="panel player">
+      <div class="unit">
+        <div class="unit-art unit-art-player">
+          <img class="unit-bm" src="preview-assets-v3/digger-cut.png" alt="" draggable="false">
+        </div>
+        <div class="hprow"><div class="hpbar"><div class="fill" style="width:100%"></div></div><span class="hplabel">75 / 75</span></div>
+        <div class="stats-more"><span class="unit-name">掘者</span></div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<section class="hand-wrap">
+  <div class="hand" id="hand">
+
+    <div class="card" data-uid="c1" data-dmg="6" style="--rar:#B4B2A9">
+      <div class="cart"><img src="preview-assets-cards/blast_charge.png" alt="" draggable="false"></div>
+      <div class="cost">1</div>
+      <div class="cname">爆裂装药</div>
+      <div class="ctype ctype-attack">攻击</div>
+      <div class="ctext">造成 6 点伤害。</div>
+    </div>
+
+    <div class="card" data-uid="c2" data-dmg="12" style="--rar:#3E6FA8">
+      <div class="cart"><img src="preview-assets-cards/bedrock_hammer.png" alt="" draggable="false"></div>
+      <div class="cost">2</div>
+      <div class="cname">裂基石锤</div>
+      <div class="ctype ctype-attack">攻击</div>
+      <div class="ctext">造成 12 点伤害。</div>
+    </div>
+
+    <div class="card" data-uid="c3" data-dmg="0" data-self="1" style="--rar:#B4B2A9">
+      <div class="cart"><img src="preview-assets-cards/ballast.png" alt="" draggable="false"></div>
+      <div class="cost">1</div>
+      <div class="cname">压舱石</div>
+      <div class="ctype ctype-skill">技能</div>
+      <div class="ctext">获得 8 点格挡。<br>（拖到敌人身上也照常生效）</div>
+    </div>
+
+    <div class="card" data-uid="c4" data-dmg="5" data-aoe="1" style="--rar:#8A6D3B">
+      <div class="cart"><img src="preview-assets-cards/ash_storm.png" alt="" draggable="false"></div>
+      <div class="cost">2</div>
+      <div class="cname">灰烬风暴</div>
+      <div class="ctype ctype-attack">攻击</div>
+      <div class="ctext">对所有敌人造成 5 点伤害。（落到谁身上都打全体）</div>
+    </div>
+
+  </div>
+</section>
+
+<section class="notes">
+  <div class="box">
+    <h2>交互规则</h2>
+    <table>
+      <tr><td>拖拽投放</td><td>拿起卡 → 指到谁高亮谁 → 松手即对谁出牌。<b>投放即选目标</b>，不再需要先点敌人。</td></tr>
+      <tr><td>直接点卡</td><td>保留：打「当前目标」（默认最前；上次打到谁就是谁）。命中动画即反馈。</td></tr>
+      <tr><td>点敌人本体</td><td>仍可切换当前目标，但<b>不再画红框</b>——只在你把卡拖过去时才亮。</td></tr>
+      <tr><td>常驻指示</td><td><b>无</b>（M53c）：M53 的脚下红色光晕读感是「红框」，已按反馈整体移除。目标靠拖拽高亮 / 悬停浮层「目标」小标 / 出手动画即时呈现。</td></tr>
+      <tr><td>投放 / 落空</td><td><b>攻击卡</b>：拖到敌人身上 = 打它；落空弹回（攻击必须有明确目标）。<br><b>技能 / 能力牌（作用自己）</b>：落到哪都出牌 —— 落在敌人身上<b>不会</b>偷换攻击目标，落空则飞向掘者生效（M53b）。</td></tr>
+      <tr><td>群体卡</td><td>「打到全体」的卡落到任何敌人身上都生效（全部高亮受击）。</td></tr>
+      <tr><td>触屏</td><td>Pointer Events 一套通吃；拖起后锁定页面滚动（touch-action）。</td></tr>
+    </table>
+  </div>
+  <div class="box">
+    <h2>动态效果清单（本页可逐一试）</h2>
+    <table>
+      <tr><td>① 拿起</td><td>原卡变半透明占位；幽灵卡放大 1.06 + 投影加深，随移动方向轻倾</td></tr>
+      <tr><td>② 瞄准</td><td>未被指到的敌人退到 68% 透明度聚焦视线；指到的辉光 + 放大 + 脚下光晕</td></tr>
+      <tr><td>③ 命中</td><td>卡飞向敌人缩小淡出 → 敌人后仰一顿（hit-knock）+ 闪红（hit-flash）+ 飘字 + 血条实降</td></tr>
+      <tr><td>④ 落空</td><td>幽灵卡带一点回弹曲线飞回原位</td></tr>
+      <tr><td>⑤ 待机</td><td>呼吸动画照常（复用 art.css，不与拖拽冲突）</td></tr>
+      <tr><td>对照</td><td>右上角可临时恢复旧版红框，比较「选中感」的差异</td></tr>
+    </table>
+    <h2 style="margin-top:10px">落地清单（已按此执行，2026-10-12）</h2>
+    <table>
+      <tr><td>style.css</td><td>删 / 关掉 .eunit.is-target::before 红框；新增 is-aim / is-aiming / ghost 样式</td></tr>
+      <tr><td>render.js</td><td>卡片加 Pointer 拖拽委托；HUD 提示「点敌人切换目标」→「拖卡到敌人身上出牌」</td></tr>
+      <tr><td>combat.js</td><td>playCard(uid, targetIdx) 增加显式目标参数（现有 tap 流不变）</td></tr>
+      <tr><td>测试</td><td>探针断言：红框已不存在 / 拖到 eidx=2 后目标变更 / 落空弹回 / 触屏可拖</td></tr>
+    </table>
+  </div>
+</section>
+
+<script>
+(function () {
+  'use strict';
+
+  var stage = document.getElementById('stage');
+  var hand = document.getElementById('hand');
+  var panel = document.getElementById('enemy-panel');
+  var DRAG_THRESHOLD = 5;          // px，超过才算「拖」，否则算点按
+  var TILT_MAX = 7;                // 幽灵卡最大倾角
+
+  var drag = null;                 // {card, ghost, x0, y0, moved, hover, lastX, tilt}
+
+  document.getElementById('old-ring').addEventListener('change', function (e) {
+    stage.classList.toggle('show-old-ring', e.target.checked);
+  });
+
+  // ---------- 工具 ----------
+
+  function units() { return [].slice.call(panel.querySelectorAll('.eunit')); }
+
+  function unitAt(x, y) {
+    var hit = null;
+    units().forEach(function (u) {
+      var r = u.querySelector('.unit-art').getBoundingClientRect();
+      var pad = 10;
+      if (x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad) hit = u;
+    });
+    return hit;
+  }
+
+  function setAim(u) {
+    if (drag && drag.hover === u) return;
+    units().forEach(function (x) { x.classList.toggle('is-aim', x === u); });
+    if (drag) drag.hover = u;
+  }
+
+  function currentTarget() {
+    // 当前目标：有 .is-target 的那个；没有就取最前的存活者
+    return panel.querySelector('.eunit.is-target') || panel.querySelector('.eunit');
+  }
+
+  function markTarget(u) {
+    units().forEach(function (x) { x.classList.toggle('is-target', x === u); });
+  }
+
+  function centerOf(u) {
+    var r = u.querySelector('.unit-art').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+
+  // ---------- 命中表现（复用正式 art.css 的 hit-knock / hit-flash） ----------
+
+  function applyHit(u, dmg, cardName) {
+    markTarget(u);
+    var art = u.querySelector('.unit-art');
+    u.classList.remove('is-hit');
+    void u.offsetWidth;                 // 重启动画
+    u.classList.add('is-hit');
+    setTimeout(function () { u.classList.remove('is-hit'); }, 480);
+
+    // 伤害飘字 + 血条实降
+    var f = document.createElement('div');
+    f.className = 'demo-dmg';
+    f.textContent = '-' + dmg;
+    u.style.position = 'relative';
+    u.appendChild(f);
+    setTimeout(function () { f.remove(); }, 900);
+
+    if (dmg > 0) {
+      var hp = Math.max(0, (+u.dataset.hp) - dmg);
+      u.dataset.hp = hp;
+      u.querySelector('.fill').style.width = (hp / +u.dataset.max * 100) + '%';
+      u.querySelector('.hplabel').textContent = hp + ' / ' + u.dataset.max;
+      if (hp === 0) setTimeout(function () { revive(u); }, 2200);
+    }
+  }
+
+  function revive(u) {
+    u.dataset.hp = u.dataset.max;
+    u.querySelector('.fill').style.width = '100%';
+    u.querySelector('.hplabel').textContent = u.dataset.max + ' / ' + u.dataset.max;
+    var art = u.querySelector('.unit-art');
+    art.style.transition = 'transform .3s ease';
+    art.style.transform = 'scale(1.12)';
+    setTimeout(function () { art.style.transform = ''; }, 320);
+  }
+
+  function consumeAndRespawn(card) {
+    // 出牌后的卡：淡出 → 摘掉占位态 → 原样淡回（设计稿循环试玩用）
+    setTimeout(function () {
+      card.style.transition = 'opacity .16s ease, transform .16s ease';
+      card.style.opacity = '0';
+      card.style.transform = 'scale(.9)';
+      setTimeout(function () {
+        // ⚠️ is-lift 必须在这里摘 —— 命中路径没有别的地方会摘它，
+        //   漏了这张卡会永远停在半透明占位态（首轮探针抓到的）
+        card.classList.remove('is-lift');
+        card.style.transition = 'opacity .22s ease, transform .22s ease';
+        card.style.opacity = '';
+        card.style.transform = '';
+      }, 170);
+    }, 80);
+  }
+
+  // ---------- 拖拽主体（Pointer Events，鼠标 / 触屏一套） ----------
+
+  function makeGhost(card) {
+    var g = card.cloneNode(true);
+    g.classList.remove('is-lift');
+    g.classList.add('ghost');
+    document.body.appendChild(g);
+    return g;
+  }
+
+  // 幽灵卡悬在指针**上方**（-94%）：卡底只压到指到点以下一点点，
+  // 敌人的脸和脚下光晕不被挡住 —— 首版 -58% 会把整个目标盖住。
+  function placeGhost(g, x, y, tilt) {
+    g.style.transform =
+      'translate(' + x + 'px,' + y + 'px)' +
+      ' translate(-50%,-94%)' +
+      ' rotate(' + (tilt || 0) + 'deg)' +
+      ' scale(1.05)';
+  }
+
+  function flyGhost(g, x, y, mode, done) {
+    g.classList.add(mode);
+    // flying 收进敌人体内（居中缩小淡出）；back 回到卡槽（原位姿态）
+    g.style.transform =
+      'translate(' + x + 'px,' + y + 'px)' +
+      ' translate(-50%,' + (mode === 'flying' ? '-55%' : '-94%') + ')' +
+      ' rotate(0deg) scale(' + (mode === 'flying' ? .4 : 1) + ')';
+    setTimeout(function () { g.remove(); if (done) done(); }, 240);
+  }
+
+  hand.addEventListener('pointerdown', function (e) {
+    var card = e.target.closest('.card');
+    if (!card) return;
+    drag = {
+      card: card, x0: e.clientX, y0: e.clientY,
+      lastX: e.clientX, moved: false, hover: null, tilt: 0, ghost: null
+    };
+  });
+
+  window.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+
+    if (!drag.moved) {
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      drag.moved = true;
+      drag.ghost = makeGhost(drag.card);
+      drag.card.classList.add('is-lift');
+      stage.classList.add('is-aiming');
+      setAim(unitAt(e.clientX, e.clientY));
+    }
+
+    // 倾角随横向速度，带平滑
+    var vx = e.clientX - drag.lastX; drag.lastX = e.clientX;
+    drag.tilt = drag.tilt * .8 + Math.max(-TILT_MAX, Math.min(TILT_MAX, vx * .55)) * .2;
+    placeGhost(drag.ghost, e.clientX, e.clientY, drag.tilt);
+    setAim(unitAt(e.clientX, e.clientY));
+  });
+
+  function endDrag(e) {
+    if (!drag) return;
+    var d = drag; drag = null;
+    stage.classList.remove('is-aiming');
+    units().forEach(function (x) { x.classList.remove('is-aim'); });
+
+    // —— 点按（没拖动）：打当前目标，同样飞卡示意去向 ——
+    if (!d.moved) {
+      var t = currentTarget();
+      var c = centerOf(t);
+      var g0 = makeGhost(d.card);
+      var r0 = d.card.getBoundingClientRect();
+      g0.style.transform = 'translate(' + (r0.left + r0.width / 2) + 'px,' + (r0.bottom - 12) + 'px) translate(-50%,-94%) rotate(0deg) scale(1)';
+      var dmg0 = +d.card.dataset.dmg;
+      if (d.card.dataset.aoe) {
+        units().forEach(function (u) { setTimeout(function () { applyHit(u, dmg0); }, 120); });
+      } else if (d.card.dataset.self) {
+        setTimeout(function () { pulseSelf(); }, 120);
+        flyGhost(g0, centerOf(document.querySelector('#player-panel .unit')).x,
+                 centerOf(document.querySelector('#player-panel .unit')).y, 'flying');
+        consumeAndRespawn(d.card);
+        return;
+      } else {
+        setTimeout(function () { applyHit(t, dmg0); }, 120);
+      }
+      flyGhost(g0, c.x, c.y, 'flying');
+      consumeAndRespawn(d.card);
+      return;
+    }
+
+    var target = d.hover;
+
+    // —— 拖到敌人身上：投放即出牌 ——
+    // （M53b）作用自己的卡（data-self）落到敌人身上不标记目标 —— 不偷换攻击目标
+    if (target) {
+      var c1 = centerOf(target);
+      var dmg = +d.card.dataset.dmg;
+      if (d.card.dataset.aoe) {
+        units().forEach(function (u) { setTimeout(function () { applyHit(u, dmg); }, 140); });
+      } else if (!d.card.dataset.self) {
+        setTimeout(function () { applyHit(target, dmg); }, 140);
+      } else {
+        setTimeout(function () { pulseSelf(); }, 140);
+      }
+      flyGhost(d.ghost, c1.x, c1.y, 'flying');
+      consumeAndRespawn(d.card);
+      return;
+    }
+
+    // —— 落空（M53b）：攻击卡弹回；作用自己的卡落到哪都出牌，飞向掘者 ——
+    if (d.card.dataset.self) {
+      var me = centerOf(document.querySelector('#player-panel .unit'));
+      setTimeout(function () { pulseSelf(); }, 140);
+      flyGhost(d.ghost, me.x, me.y, 'flying');
+      consumeAndRespawn(d.card);
+      return;
+    }
+    var r = d.card.getBoundingClientRect();
+    flyGhost(d.ghost, r.left + r.width / 2, r.top + 60, 'back', function () {
+      d.card.classList.remove('is-lift');
+    });
+  }
+
+  // 自我生效的示意：掘者轻晃一下 + 「+格挡」飘字
+  function pulseSelf() {
+    var me = document.querySelector('#player-panel .unit');
+    var f = document.createElement('div');
+    f.className = 'demo-dmg';
+    f.style.color = '#3E6FA8';
+    f.textContent = '格挡 +';
+    me.appendChild(f);
+    setTimeout(function () { f.remove(); }, 900);
+  }
+
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
+
+  // 点敌人本体：仍可换当前目标（无红框，仅悬停浮层里的「目标」小标会变）
+  panel.addEventListener('click', function (e) {
+    var el = e.target.closest('.eunit');
+    if (el) markTarget(el);
+  });
+
+  // 背景显影（首帧 hidden，与实机 render.draw 同款）
+  document.getElementById('battle-bg').hidden = false;
+})();
+</script>
+</body>
+</html>

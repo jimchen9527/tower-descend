@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>打击音效试听台（材质 × 卡片特质）</title>
+<style>
+  :root { --bg:#16161f; --card:#242433; --card-hover:#30304a; --fg:#e8e8f2; --dim:#8a8aa3;
+          --line:#3a3a52; --hot:#e0a94a; --ok:#5fbf7a; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:26px 28px 60px; font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+         background:var(--bg); color:var(--fg); }
+  h1 { font-size:18px; margin:0 0 4px; }
+  h2 { font-size:14px; margin:30px 0 10px; color:var(--hot); font-weight:600; }
+  .sub { color:var(--dim); font-size:13px; margin:0 0 6px; line-height:1.6; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-width:760px; }
+  .btn { position:relative; padding:14px 12px 12px; font-size:15px; border:1px solid var(--line);
+         border-radius:10px; background:var(--card); color:var(--fg); cursor:pointer; text-align:left;
+         transition:background .12s,border-color .12s; }
+  .btn:hover { background:var(--card-hover); border-color:#4a4a6a; }
+  .btn:active { transform:translateY(1px); }
+  .en { display:block; margin-top:6px; font-size:12px; color:var(--dim);
+        font-family:ui-monospace,Consolas,monospace; }
+  .bar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:14px 0 4px;
+         padding:12px 14px; background:#1e1e2b; border:1px solid var(--line); border-radius:10px; max-width:760px; }
+  .bar label { font-size:13px; color:var(--dim); }
+  select, input[type=range] { background:var(--card); color:var(--fg); border:1px solid var(--line);
+         border-radius:6px; padding:4px 6px; font-size:13px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; max-width:760px; }
+  .chip { padding:7px 11px; border:1px solid var(--line); border-radius:20px; background:var(--card);
+          color:var(--fg); font-size:13px; cursor:pointer; }
+  .chip.on { border-color:var(--hot); color:var(--hot); background:#2c2718; }
+  .cards { max-width:1000px; }
+  .group { margin-bottom:16px; }
+  .gname { font-size:13px; color:var(--dim); margin:0 0 8px; }
+  .clist { display:grid; grid-template-columns:repeat(auto-fill,minmax(212px,1fr)); gap:8px; }
+  .cbtn { padding:9px 11px; border:1px solid var(--line); border-radius:8px; background:var(--card);
+          color:var(--fg); cursor:pointer; text-align:left; font-size:13px; }
+  .cbtn:hover { background:var(--card-hover); }
+  .cbtn .meta { display:block; margin-top:4px; font-size:11px; color:var(--dim);
+                font-family:ui-monospace,Consolas,monospace; }
+  .cbtn .tags { display:block; margin-top:3px; font-size:11px; color:var(--hot); }
+  pre { background:#1b1b26; border:1px solid var(--line); border-radius:8px; padding:12px 14px;
+        font-size:12px; line-height:1.6; max-width:760px; overflow:auto; color:#c8c8dc; }
+  .note { font-size:12px; color:var(--dim); margin-top:6px; }
+  @media (max-width:560px) { .grid { grid-template-columns:repeat(2,1fr); } body { padding:18px; } }
+</style>
+</head>
+<body>
+  <h1>打击音效试听台 · 材质 × 卡片特质</h1>
+  <p class="sub">
+    三层结构：<b>材质层</b>（打的是什么，9 种，来自卡面）→ <b>力度层</b>（打多重，由真实伤害推 0~1）→
+    <b>语义层</b>（这张卡在做什么，7 种机制派生）。<br>
+    每条都可反复点、连续点（走元素轮换池，不互相掐断）。想听出差别，先点「仅材质层」，再点同一张卡。
+  </p>
+
+  <div class="bar">
+    <label>通道</label><b id="path">…</b>
+    <label>就绪</label><b id="ready">…</b>
+    <label><input type="checkbox" id="legacy"> 旧版行为（不传画像）</label>
+    <label>力度 <input type="range" id="w" min="0" max="1" step="0.05" value="0.5"></label>
+    <b id="wv">0.50</b>
+    <label>横扫 <input type="checkbox" id="wide"></label>
+    <label>目标数 <input type="range" id="times" min="1" max="4" step="1" value="1"></label>
+    <b id="tv">1</b>
+  </div>
+
+  <h2>A · 按材质（材质层 + 勾选语义层）</h2>
+  <p class="sub">点下面的气质开关，再点材质 —— 这一层是「这张卡在做什么」。</p>
+  <div class="chips" id="chips"></div>
+  <div class="grid" id="grid" style="margin-top:12px"></div>
+
+  <h2>B · 按卡片（真实画像：材质 + 特质 + 力度）</h2>
+  <p class="sub">
+    卡片列表直接读游戏数据，点一下就是这张牌在战斗里的声音。
+    力度用卡面的「单次伤害」估算（游戏里用实际打出的伤害，比例型卡牌会随局势变）。
+  </p>
+  <div class="cards" id="cards"></div>
+
+  <h2>C · 诊断：最近一次派发计划</h2>
+  <pre id="diag">（还没播过）</pre>
+  <p class="note">「仅材质层」= 把下面所有气质开关关掉、且不传力度 —— 等价于改版前的行为，用来 A/B 对照。</p>
+
+  <!-- M39：引擎层必须先于内容层；M40：画像层是纯数据，先于音频 -->
+  <script src="js/data/characters.js"></script>
+  <script src="js/data/cards.js"></script>
+  <script src="js/data/cards-medic.js"></script>
+  <script src="js/data/cards-keeper.js"></script>
+  <script src="js/data/sfx-profile.js"></script>
+  <script src="js/ui/audio-mw.js"></script>
+  <script src="js/ui/audio.js"></script>
+  <script>
+    var MATS = [
+      ['blunt',  '钝击',  '铁拳 · 打击 · 推压'],
+      ['hammer', '重锤',  '震地锤 · 基岩锤'],
+      ['metal',  '金属',  '撬棍 · 火钳'],
+      ['pick',   '凿击',  '凿 · 碎石'],
+      ['drill',  '钻探',  '凿岩机 · 终末钻探'],
+      ['blast',  '爆破',  '炸药包 · 连锁爆破'],
+      ['blade',  '刀刃',  '解剖刀 · 手术刀'],
+      ['flame',  '火焰',  '灼烧 · 焚身 · 天火'],
+      ['claw',   '爪击',  '撕咬 · 撕裂（敌人）'],
+    ];
+    var picked = {};   // 勾选中的语义层
+
+    var $ = function (id) { return document.getElementById(id); };
+
+    function refresh() {
+      $('path').textContent = (typeof TDAudio !== 'undefined' && TDAudio) ? TDAudio.caps.path : 'no-mw';
+      var r = Sfx.ready();
+      $('ready').textContent = r.rendered + ' / ' + r.total;
+      $('wv').textContent = Number($('w').value).toFixed(2);
+      $('tv').textContent = $('times').value;
+    }
+
+    // ---- A 区：语义层开关 ----
+    var chips = $('chips');
+    SfxProfile.TRAIT_ORDER.forEach(function (t) {
+      var c = document.createElement('button');
+      c.className = 'chip';
+      c.textContent = SfxProfile.TRAIT_ZH[t] + '（' + t + '）';
+      c.addEventListener('click', function () {
+        picked[t] = !picked[t];
+        c.className = 'chip' + (picked[t] ? ' on' : '');
+      });
+      chips.appendChild(c);
+    });
+
+    function optsFor() {
+      if ($('legacy').checked) return {};   // 旧版：一个画像参数都不传
+      var traits = SfxProfile.TRAIT_ORDER.filter(function (t) {
+        return picked[t] && (t !== 'wide' || true);
+      });
+      if ($('wide').checked && traits.indexOf('wide') < 0) traits.push('wide');
+      return { traits: traits, weight: Number($('w').value), times: Number($('times').value), x: 0, dist: 0 };
+    }
+
+    // ---- A 区：材质按钮 ----
+    MATS.forEach(function (item) {
+      var b = document.createElement('button');
+      b.className = 'btn';
+      b.textContent = item[1];
+      var en = document.createElement('span');
+      en.className = 'en';
+      en.textContent = item[0] + ' · ' + item[2];
+      b.appendChild(en);
+      b.addEventListener('click', function () {
+        Sfx.play(item[0], optsFor());
+        setTimeout(refresh, 80);
+      });
+      $('grid').appendChild(b);
+    });
+
+    // ---- B 区：按卡片 ----
+    var byChar = {};
+    Object.keys(CARDS).forEach(function (k) {
+      var c = CARDS[k];
+      if (c.type !== 'attack') return;
+      var g = c.char || 'digger';
+      (byChar[g] = byChar[g] || []).push(c);
+    });
+    var host = $('cards');
+    ['digger', 'medic', 'keeper'].forEach(function (g) {
+      var list = byChar[g];
+      if (!list || !list.length) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'group';
+      var nm = document.createElement('p');
+      nm.className = 'gname';
+      nm.textContent = (CHARACTERS[g] && CHARACTERS[g].name ? CHARACTERS[g].name : g) + ' · ' + list.length + ' 张攻击牌';
+      wrap.appendChild(nm);
+      var cl = document.createElement('div');
+      cl.className = 'clist';
+      list.forEach(function (c) {
+        var p = SfxProfile.of(c);
+        var b = document.createElement('button');
+        b.className = 'cbtn';
+        b.appendChild(document.createTextNode(c.name));
+        var tags = document.createElement('span');
+        tags.className = 'tags';
+        tags.textContent = p.traits.length
+          ? p.traits.map(function (t) { return SfxProfile.TRAIT_ZH[t]; }).join(' + ')
+          : '（仅材质层 + 力度）';
+        b.appendChild(tags);
+        var meta = document.createElement('span');
+        meta.className = 'meta';
+        meta.textContent = (SfxProfile.IMPACT_ZH[c.impact] || '?') + ' / ' +
+          Math.round(p.dmg) + '伤 / 力度 ' + p.weight.toFixed(2);
+        b.appendChild(meta);
+        b.addEventListener('click', function () {
+          Sfx.play(c.impact, { traits: p.traits, weight: p.weight,
+            times: (c.v && c.v.times) || 1, x: 0, dist: 0 });
+          setTimeout(refresh, 80);
+        });
+        cl.appendChild(b);
+      });
+      wrap.appendChild(cl);
+      host.appendChild(wrap);
+    });
+
+    ['legacy', 'wide'].forEach(function (id) { $(id).addEventListener('change', refresh); });
+    ['w', 'times'].forEach(function (id) { $(id).addEventListener('input', refresh); });
+
+    // ---- C 区：诊断 ----
+    setInterval(function () {
+      var p = Sfx.last && Sfx.last();
+      if (!p) return;
+      var lines = [
+        '材质 ' + p.mat + '（' + (SfxProfile.IMPACT_ZH[p.mat] || '?') + '）' +
+          '  力度 ' + p.weight.toFixed(2) + '  速率 ' + p.rate.toFixed(3) +
+          (p.legacy ? '   [旧版：无画像]' : ''),
+        '特质 ' + (p.traits.length ? p.traits.join(' + ') : '（无）'),
+        '声部 ' + p.shots.length + ' 个：',
+      ];
+      p.shots.forEach(function (s, i) {
+        lines.push('  ' + (i + 1) + '. ' + s.role.padEnd(8) +
+          ' key=' + s.key.padEnd(12) +
+          ' delay=' + (s.delay == null ? '-' : (+s.delay).toFixed(3)) +
+          ' rate=' + (s.rate == null ? '-' : s.rate.toFixed(2)) +
+          ' vol=' + (s.vol == null ? '-' : s.vol.toFixed(2)) +
+          (s.mirror ? '  [镜像/横扫]' : ''));
+      });
+      $('diag').textContent = lines.join('\n');
+    }, 400);
+
+    refresh();
+  </script>
+</body>
+</html>
